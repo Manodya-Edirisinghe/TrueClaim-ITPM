@@ -1,0 +1,2 @@
+# Express middlewares go here
+# Example: auth.middleware.ts, error.middleware.ts, upload.middleware.ts
