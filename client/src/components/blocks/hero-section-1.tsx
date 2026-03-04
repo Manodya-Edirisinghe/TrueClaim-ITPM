@@ -143,10 +143,10 @@ export function HeroSection() {
   return (
     <>
       <HeroHeader />
-      <main className="overflow-hidden" style={{ backgroundColor: bg, color: '#ffffff', fontFamily: "'Inter', sans-serif" }}>
+      <main className="relative overflow-hidden w-full" style={{ backgroundColor: bg, color: '#ffffff', fontFamily: "'Inter', sans-serif" }}>
 
         {/* Subtle blue side glows */}
-        <div aria-hidden className="z-[2] absolute inset-0 pointer-events-none isolate opacity-60 hidden lg:block">
+        <div aria-hidden className="z-[2] absolute inset-0 pointer-events-none isolate opacity-60 hidden lg:block overflow-hidden">
           <div className="absolute left-0 top-0 w-[28rem] h-[60rem] -rotate-45 rounded-full"
             style={{ background: `radial-gradient(ellipse, ${blueDim} 0%, transparent 70%)`, transform: 'rotate(-45deg) translateY(-280px)' }} />
           <div className="absolute right-0 top-0 w-64 h-[50rem] rounded-full"

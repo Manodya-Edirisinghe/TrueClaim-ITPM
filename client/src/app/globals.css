@@ -43,10 +43,15 @@
   * {
     border-color: hsl(var(--border));
   }
+  html {
+    overflow-x: hidden;
+  }
   body {
     background-color: var(--tc-bg);
     color: var(--tc-text);
     font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 }
 
