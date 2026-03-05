@@ -1,5 +1,5 @@
 node_modules/
-.env
 dist/
 *.js.map
 .next/
+config.bat

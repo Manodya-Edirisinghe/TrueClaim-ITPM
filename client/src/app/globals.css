@@ -50,6 +50,11 @@
   }
 }
 
+[data-form-select] option {
+  background: #ffffff;
+  color: #111827;
+}
+
 /* ── Shared Keyframe Animations ── */
 @keyframes float {
   0%, 100% { transform: translateY(0px);    }
