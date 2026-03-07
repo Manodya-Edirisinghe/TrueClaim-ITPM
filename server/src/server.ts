@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
+import { errorHandler } from './middlewares/error.middleware';
 
 // Routes
 import itemRoutes from './routes/item.routes';
@@ -52,6 +53,9 @@ app.use('/api/admin', adminRoutes);
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// ─── Error Handling ───────────────────────────────────────────────────────────
+app.use(errorHandler);
 
 // ─── Database Connection ──────────────────────────────────────────────────────
 const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/trueclaim';
