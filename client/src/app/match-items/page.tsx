@@ -1,15 +1,50 @@
-import React from "react";
-import Link from "next/link";
+import Link from 'next/link';
+import { Sparkles } from 'lucide-react';
+
+const menuItems = [
+  { name: 'Features', href: '#features' },
+  { name: 'Match Items', href: '/match-items' },
+  { name: 'Universities', href: '#universities' },
+  { name: 'Contact', href: '#contact' },
+];
 
 export default function MatchItemsPage() {
   return (
-    <div style={{ padding: "2rem", fontFamily: "'Inter', sans-serif" }}>
-      <h1 style={{ fontSize: "2rem", fontWeight: 700 }}>Match Items</h1>
-      <p>This is the Match Items page. You can list all matched items here.</p>
+    <main
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#000000',
+        color: '#ffffff',
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <header>
+        <nav className="w-full px-2">
+          <div className="mx-auto mt-2 max-w-6xl px-6 lg:px-12">
+            <div className="relative flex items-center justify-between py-4">
+              <Link href="/landing" aria-label="home" className="flex items-center gap-2">
+                <div
+                  className="size-8 rounded-lg flex items-center justify-center"
+                  style={{ background: '#0A66C2' }}
+                >
+                  <Sparkles className="size-4 text-white" />
+                </div>
+                <span className="font-bold text-lg tracking-tight text-white">TrueClaim</span>
+              </Link>
 
-      <Link href="/landing" style={{ color: "#0A66C2", marginTop: "1rem", display: "inline-block" }}>
-        ← Back to Landing
-      </Link>
-    </div>
+              <ul className="flex gap-8 text-sm">
+                {menuItems.map((item) => (
+                  <li key={item.name}>
+                    <Link href={item.href} className="text-white/60 hover:text-white block duration-150 transition-colors">
+                      {item.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </nav>
+      </header>
+    </main>
   );
 }
