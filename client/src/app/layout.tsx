@@ -20,7 +20,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ToastProvider>
           {/* TODO: Add Navbar component here */}
-          <main className="min-h-screen">{children}</main>
+          <main className="min-h-screen overflow-x-hidden">
+            {children}
+          </main>
         </ToastProvider>
       </body>
     </html>
