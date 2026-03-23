@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
+import mongoose from 'mongoose';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -25,6 +26,12 @@ export const errorHandler = (
   // Custom file-filter error
   if (err.message?.startsWith('Only JPEG')) {
     res.status(400).json({ error: err.message });
+    return;
+  }
+
+  // Invalid Mongo ObjectId casts
+  if (err instanceof mongoose.Error.CastError && err.path === '_id') {
+    res.status(400).json({ error: 'Invalid item id format.' });
     return;
   }
 

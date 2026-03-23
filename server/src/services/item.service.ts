@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Item, IItem } from '../models/item.model';
 import {
   uploadImageToCloudinary,
@@ -104,11 +105,27 @@ export async function getItemById(id: string): Promise<IItem | null> {
 }
 
 export async function deleteItem(id: string): Promise<boolean> {
+  if (!mongoose.isValidObjectId(id)) {
+    const err: Error & { statusCode?: number; isOperational?: boolean } =
+      new Error('Invalid item id format.');
+    err.statusCode = 400;
+    err.isOperational = true;
+    throw err;
+  }
+
   const item = await Item.findById(id);
   if (!item) return false;
 
   if (item.imagePublicId) {
-    await deleteImageFromCloudinary(item.imagePublicId);
+    try {
+      await deleteImageFromCloudinary(item.imagePublicId);
+    } catch {
+      const err: Error & { statusCode?: number; isOperational?: boolean } =
+        new Error('Failed to remove image from Cloudinary. Please try again.');
+      err.statusCode = 502;
+      err.isOperational = true;
+      throw err;
+    }
   }
 
   await item.deleteOne();

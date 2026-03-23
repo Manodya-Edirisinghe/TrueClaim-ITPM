@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,6 +10,7 @@ import { FormInput, FormSelect, FormTextarea } from '@/components/form';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import api from '@/lib/axios';
 
 const ITEM_CATEGORIES = [
   'Wallet / Purse',
@@ -108,11 +110,13 @@ function FieldError({ id, message }: { id: string; message: string }) {
 function ItemForm({
   type,
   title,
+  isSubmitting,
   onSubmit,
 }: {
   type: 'lost' | 'found';
   title: string;
-  onSubmit: (data: FormData) => void;
+  isSubmitting: boolean;
+  onSubmit: (data: FormData) => Promise<void>;
 }) {
   const [data, setData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -149,7 +153,7 @@ function ItemForm({
     setData((prev) => ({ ...prev, image: file }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const nextErrors = validateItemForm(data);
     if (Object.keys(nextErrors).length > 0) {
@@ -157,13 +161,13 @@ function ItemForm({
       return;
     }
     setErrors({});
-    onSubmit(data);
-    toast.success(
-      type === 'lost'
-        ? 'Your lost item report was submitted successfully.'
-        : 'Your found item report was submitted successfully.'
-    );
-    setData(initialFormData);
+
+    try {
+      await onSubmit(data);
+      setData(initialFormData);
+    } catch {
+      // Errors are surfaced by the submit handler toast.
+    }
   };
 
   const formId = `${type}-item-form`;
@@ -325,9 +329,12 @@ function ItemForm({
         <div className="pt-1 sm:col-span-2">
           <Button
             type="submit"
+            disabled={isSubmitting}
             className="w-full bg-[#0A66C2] hover:bg-[#0958a8] text-white sm:w-auto"
           >
-            Submit {type === 'lost' ? 'Lost' : 'Found'} Item
+            {isSubmitting
+              ? 'Submitting...'
+              : `Submit ${type === 'lost' ? 'Lost' : 'Found'} Item`}
           </Button>
         </div>
       </form>
@@ -337,23 +344,70 @@ function ItemForm({
 
 function LostAndFoundPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tabParam = searchParams.get('tab');
 
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
+  const [submittingType, setSubmittingType] = useState<'lost' | 'found' | null>(
+    null
+  );
 
   useEffect(() => {
     if (tabParam === 'found') setActiveTab('found');
     else setActiveTab('lost');
   }, [tabParam]);
 
-  const handleLostSubmit = (data: FormData) => {
-    console.log('Lost item submitted:', data);
-    // TODO: send to API
+  const submitItem = async (itemType: 'lost' | 'found', data: FormData) => {
+    setSubmittingType(itemType);
+
+    const payload = new FormData();
+    payload.append('itemType', itemType);
+    payload.append('itemTitle', data.itemTitle);
+    payload.append('itemCategory', data.itemCategory);
+    payload.append('description', data.description);
+    payload.append('time', data.time);
+    payload.append('location', data.location);
+    payload.append('contactNumber', data.contactNumber);
+
+    if (data.image) {
+      payload.append('image', data.image);
+    }
+
+    try {
+      await api.post('/items', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      toast.success(
+        itemType === 'lost'
+          ? 'Lost item submitted. Showing best found matches.'
+          : 'Found item submitted. Showing best lost matches.'
+      );
+
+      const params = new URLSearchParams({
+        itemType,
+        title: data.itemTitle,
+        category: data.itemCategory,
+        location: data.location,
+        fromDate: data.time.slice(0, 10),
+      });
+
+      router.push(`/matching?${params.toString()}`);
+    } catch (error) {
+      console.error('[Submit Item Error]', error);
+      toast.error('Failed to submit item. Please try again.');
+      throw error;
+    } finally {
+      setSubmittingType(null);
+    }
   };
 
-  const handleFoundSubmit = (data: FormData) => {
-    console.log('Found item submitted:', data);
-    // TODO: send to API
+  const handleLostSubmit = async (data: FormData) => {
+    await submitItem('lost', data);
+  };
+
+  const handleFoundSubmit = async (data: FormData) => {
+    await submitItem('found', data);
   };
 
   return (
@@ -397,6 +451,7 @@ function LostAndFoundPageContent() {
           <ItemForm
             type="lost"
             title="Lost Item Form"
+            isSubmitting={submittingType === 'lost'}
             onSubmit={handleLostSubmit}
           />
         )}
@@ -404,6 +459,7 @@ function LostAndFoundPageContent() {
           <ItemForm
             type="found"
             title="Found Item Form"
+            isSubmitting={submittingType === 'found'}
             onSubmit={handleFoundSubmit}
           />
         )}
