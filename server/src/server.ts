@@ -11,6 +11,7 @@ import itemRoutes from './routes/item.routes';
 import messageRoutes from './routes/message.routes';
 import claimRoutes from './routes/claim.routes';
 import adminRoutes from './routes/admin.routes';
+import feedbackRoutes from './routes/feedbackRoutes';
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use('/api/items', itemRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
