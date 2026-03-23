@@ -1,49 +1,93 @@
 import { Request, Response, NextFunction } from 'express';
+import * as itemService from '../services/item.service';
 
-// ─── Item Controller ──────────────────────────────────────────────────────────
-// Owner: Hashini | Handles CRUD operations for lost/found items
-
-export const getAllItems = async (
-  _req: Request,
+// POST /api/items
+export async function createItem(
+  req: Request,
   res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  // TODO: Fetch all items from MongoDB
-  res.json({ message: 'getAllItems – not yet implemented' });
-};
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { itemType, itemTitle, itemCategory, description, time, location, contactNumber } =
+      req.body;
 
-export const getItemById = async (
-  _req: Request,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  // TODO: Fetch a single item by ID
-  res.json({ message: 'getItemById – not yet implemented' });
-};
+    const imageBuffer = req.file?.buffer;
 
-export const createItem = async (
-  _req: Request,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  // TODO: Create a new lost/found item
-  res.json({ message: 'createItem – not yet implemented' });
-};
+    const item = await itemService.createItem({
+      itemType,
+      itemTitle,
+      itemCategory,
+      description,
+      time,
+      location,
+      contactNumber,
+      imageBuffer,
+    });
 
-export const updateItem = async (
-  _req: Request,
-  res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  // TODO: Update item details
-  res.json({ message: 'updateItem – not yet implemented' });
-};
+    res.status(201).json({ message: 'Item submitted successfully', item });
+  } catch (err) {
+    next(err);
+  }
+}
 
-export const deleteItem = async (
-  _req: Request,
+// GET /api/items
+export async function getItems(
+  req: Request,
   res: Response,
-  _next: NextFunction
-): Promise<void> => {
-  // TODO: Delete an item
-  res.json({ message: 'deleteItem – not yet implemented' });
-};
+  next: NextFunction
+): Promise<void> {
+  try {
+    const itemType = req.query.itemType as string | undefined;
+    const page = Math.max(1, parseInt((req.query.page as string) ?? '1', 10));
+    const limit = Math.min(50, Math.max(1, parseInt((req.query.limit as string) ?? '20', 10)));
+
+    const { items, total } = await itemService.getAllItems(itemType, page, limit);
+
+    res.json({
+      items,
+      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/items/:id
+export async function getItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const item = await itemService.getItemById(req.params.id);
+
+    if (!item) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    res.json({ item });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// DELETE /api/items/:id
+export async function deleteItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const deleted = await itemService.deleteItem(req.params.id);
+
+    if (!deleted) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    res.json({ message: 'Item deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
