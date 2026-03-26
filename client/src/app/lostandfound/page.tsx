@@ -54,9 +54,9 @@ type ValidatedField =
 
 type FieldErrors = Partial<Record<ValidatedField, string>>;
 
-function formatDatetimeLocal(d: Date): string {
+function formatDateOnly(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function validateItemForm(data: FormData): FieldErrors {
@@ -99,6 +99,22 @@ function validateItemForm(data: FormData): FieldErrors {
 const fieldErrorInputClass =
   'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500';
 
+const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
+
+function rememberListingId(id: string): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
+    const ids = raw ? (JSON.parse(raw) as string[]) : [];
+    if (!ids.includes(id)) {
+      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
+    }
+  } catch {
+    // Ignore localStorage failures and continue UX flow.
+  }
+}
+
 function FieldError({ id, message }: { id: string; message: string }) {
   return (
     <p id={id} className="text-sm text-red-600" role="alert">
@@ -110,18 +126,17 @@ function FieldError({ id, message }: { id: string; message: string }) {
 function ItemForm({
   type,
   title,
-  isSubmitting,
   onSubmit,
 }: {
   type: 'lost' | 'found';
   title: string;
-  isSubmitting: boolean;
   onSubmit: (data: FormData) => Promise<void>;
 }) {
   const [data, setData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const datetimeMax = formatDatetimeLocal(new Date());
+  const dateMax = formatDateOnly(new Date());
 
   const clearFieldError = (field: ValidatedField) => {
     setErrors((prev) => {
@@ -161,12 +176,14 @@ function ItemForm({
       return;
     }
     setErrors({});
-
     try {
+      setIsSubmitting(true);
       await onSubmit(data);
       setData(initialFormData);
     } catch {
-      // Errors are surfaced by the submit handler toast.
+      toast.error('Failed to submit item. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -254,14 +271,20 @@ function ItemForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor={`${formId}-time`}>Date & time</Label>
+          <Label htmlFor={`${formId}-time`}>Date</Label>
           <FormInput
             id={`${formId}-time`}
             name="time"
-            type="datetime-local"
+            type="date"
             value={data.time}
             onChange={handleChange}
-            max={datetimeMax}
+            max={dateMax}
+            onFocus={(event) => {
+              const input = event.currentTarget as HTMLInputElement & {
+                showPicker?: () => void;
+              };
+              input.showPicker?.();
+            }}
             aria-invalid={!!errors.time}
             aria-describedby={errors.time ? errId('time') : undefined}
             className={cn(errors.time && fieldErrorInputClass)}
@@ -343,14 +366,11 @@ function ItemForm({
 }
 
 function LostAndFoundPageContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
-  const [submittingType, setSubmittingType] = useState<'lost' | 'found' | null>(
-    null
-  );
 
   useEffect(() => {
     if (tabParam === 'found') setActiveTab('found');
@@ -358,9 +378,7 @@ function LostAndFoundPageContent() {
   }, [tabParam]);
 
   const submitItem = async (itemType: 'lost' | 'found', data: FormData) => {
-    setSubmittingType(itemType);
-
-    const payload = new FormData();
+    const payload = new window.FormData();
     payload.append('itemType', itemType);
     payload.append('itemTitle', data.itemTitle);
     payload.append('itemCategory', data.itemCategory);
@@ -368,38 +386,32 @@ function LostAndFoundPageContent() {
     payload.append('time', data.time);
     payload.append('location', data.location);
     payload.append('contactNumber', data.contactNumber);
-
     if (data.image) {
       payload.append('image', data.image);
     }
 
-    try {
-      await api.post('/items', payload, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+    const response = await api.post('/items', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
-      toast.success(
-        itemType === 'lost'
-          ? 'Lost item submitted. Showing best found matches.'
-          : 'Found item submitted. Showing best lost matches.'
-      );
+    const createdId = response.data?.item?._id;
+    if (createdId) rememberListingId(createdId);
 
-      const params = new URLSearchParams({
-        itemType,
-        title: data.itemTitle,
-        category: data.itemCategory,
-        location: data.location,
-        fromDate: data.time.slice(0, 10),
-      });
+    toast.success(
+      itemType === 'lost'
+        ? 'Lost item submitted. Showing best found matches.'
+        : 'Found item submitted. Showing best lost matches.'
+    );
 
-      router.push(`/matching?${params.toString()}`);
-    } catch (error) {
-      console.error('[Submit Item Error]', error);
-      toast.error('Failed to submit item. Please try again.');
-      throw error;
-    } finally {
-      setSubmittingType(null);
-    }
+    const params = new URLSearchParams({
+      itemType,
+      title: data.itemTitle,
+      category: data.itemCategory,
+      location: data.location,
+      fromDate: data.time.slice(0, 10),
+    });
+
+    router.push(`/matching?${params.toString()}`);
   };
 
   const handleLostSubmit = async (data: FormData) => {
@@ -451,7 +463,6 @@ function LostAndFoundPageContent() {
           <ItemForm
             type="lost"
             title="Lost Item Form"
-            isSubmitting={submittingType === 'lost'}
             onSubmit={handleLostSubmit}
           />
         )}
@@ -459,7 +470,6 @@ function LostAndFoundPageContent() {
           <ItemForm
             type="found"
             title="Found Item Form"
-            isSubmitting={submittingType === 'found'}
             onSubmit={handleFoundSubmit}
           />
         )}
