@@ -12,6 +12,22 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
 
+const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
+
+function rememberListingId(id: string): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
+    const ids = raw ? (JSON.parse(raw) as string[]) : [];
+    if (!ids.includes(id)) {
+      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
+    }
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
 const ITEM_CATEGORIES = [
   'Wallet / Purse',
   'Keys',
@@ -54,9 +70,9 @@ type ValidatedField =
 
 type FieldErrors = Partial<Record<ValidatedField, string>>;
 
-function formatDateOnly(d: Date): string {
+function formatDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function validateItemForm(data: FormData): FieldErrors {
@@ -99,22 +115,6 @@ function validateItemForm(data: FormData): FieldErrors {
 const fieldErrorInputClass =
   'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500';
 
-const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
-
-function rememberListingId(id: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
-    const ids = raw ? (JSON.parse(raw) as string[]) : [];
-    if (!ids.includes(id)) {
-      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
-    }
-  } catch {
-    // Ignore localStorage failures and continue UX flow.
-  }
-}
-
 function FieldError({ id, message }: { id: string; message: string }) {
   return (
     <p id={id} className="text-sm text-red-600" role="alert">
@@ -130,13 +130,12 @@ function ItemForm({
 }: {
   type: 'lost' | 'found';
   title: string;
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: FormData) => void;
 }) {
   const [data, setData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const dateMax = formatDateOnly(new Date());
+  const datetimeMax = formatDatetimeLocal(new Date());
 
   const clearFieldError = (field: ValidatedField) => {
     setErrors((prev) => {
@@ -168,7 +167,7 @@ function ItemForm({
     setData((prev) => ({ ...prev, image: file }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const nextErrors = validateItemForm(data);
     if (Object.keys(nextErrors).length > 0) {
@@ -176,15 +175,13 @@ function ItemForm({
       return;
     }
     setErrors({});
-    try {
-      setIsSubmitting(true);
-      await onSubmit(data);
-      setData(initialFormData);
-    } catch {
-      toast.error('Failed to submit item. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    onSubmit(data);
+    toast.success(
+      type === 'lost'
+        ? 'Your lost item report was submitted successfully.'
+        : 'Your found item report was submitted successfully.'
+    );
+    setData(initialFormData);
   };
 
   const formId = `${type}-item-form`;
@@ -271,20 +268,14 @@ function ItemForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor={`${formId}-time`}>Date</Label>
+          <Label htmlFor={`${formId}-time`}>Date & time</Label>
           <FormInput
             id={`${formId}-time`}
             name="time"
-            type="date"
+            type="datetime-local"
             value={data.time}
             onChange={handleChange}
-            max={dateMax}
-            onFocus={(event) => {
-              const input = event.currentTarget as HTMLInputElement & {
-                showPicker?: () => void;
-              };
-              input.showPicker?.();
-            }}
+            max={datetimeMax}
             aria-invalid={!!errors.time}
             aria-describedby={errors.time ? errId('time') : undefined}
             className={cn(errors.time && fieldErrorInputClass)}
@@ -352,12 +343,9 @@ function ItemForm({
         <div className="pt-1 sm:col-span-2">
           <Button
             type="submit"
-            disabled={isSubmitting}
             className="w-full bg-[#0A66C2] hover:bg-[#0958a8] text-white sm:w-auto"
           >
-            {isSubmitting
-              ? 'Submitting...'
-              : `Submit ${type === 'lost' ? 'Lost' : 'Found'} Item`}
+            Submit {type === 'lost' ? 'Lost' : 'Found'} Item
           </Button>
         </div>
       </form>
@@ -390,28 +378,12 @@ function LostAndFoundPageContent() {
       payload.append('image', data.image);
     }
 
-    const response = await api.post('/items', payload, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post('/items', payload);
 
     const createdId = response.data?.item?._id;
     if (createdId) rememberListingId(createdId);
 
-    toast.success(
-      itemType === 'lost'
-        ? 'Lost item submitted. Showing best found matches.'
-        : 'Found item submitted. Showing best lost matches.'
-    );
-
-    const params = new URLSearchParams({
-      itemType,
-      title: data.itemTitle,
-      category: data.itemCategory,
-      location: data.location,
-      fromDate: data.time.slice(0, 10),
-    });
-
-    router.push(`/matching?${params.toString()}`);
+    router.push('/my-listings');
   };
 
   const handleLostSubmit = async (data: FormData) => {

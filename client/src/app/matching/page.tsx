@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import MatchingForm, { MatchSearchFilters } from '@/components/matching/MatchingForm';
 import ResultCard from '@/components/matching/ResultCard';
-import api from '@/lib/axios';
+import api, { resolveImageUrl } from '@/lib/axios';
 
 type MatchItem = {
   id: string;
@@ -182,7 +182,7 @@ function MatchingPageContent() {
           category: entry.itemCategory,
           location: entry.location,
           date: toDateOnly(entry.time),
-          image: entry.imageUrl || FALLBACK_IMAGE,
+          image: resolveImageUrl(entry.imageUrl) || FALLBACK_IMAGE,
           matchScore: 0,
         }));
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import api from '@/lib/axios';
+import api, { resolveImageUrl } from '@/lib/axios';
 import { Button } from '@/components/ui/button';
 
 const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
@@ -91,7 +91,7 @@ function ListingCard({
       <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
         <div className="overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-black/20">
           {item.imageUrl ? (
-            <img src={item.imageUrl} alt={item.itemTitle} className="h-36 w-full object-cover" />
+            <img src={resolveImageUrl(item.imageUrl) ?? ''} alt={item.itemTitle} className="h-36 w-full object-cover" />
           ) : (
             <div className="flex h-36 items-center justify-center text-xs text-muted-foreground">
               No image

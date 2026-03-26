@@ -1,9 +1,8 @@
 import mongoose from 'mongoose';
+import path from 'path';
+import fs from 'fs/promises';
+import crypto from 'crypto';
 import { Item, IItem } from '../models/item.model';
-import {
-  uploadImageToCloudinary,
-  deleteImageFromCloudinary,
-} from '../utils/cloudinary.util';
 
 const VALID_TYPES = ['lost', 'found'] as const;
 type ItemType = (typeof VALID_TYPES)[number];
@@ -17,6 +16,7 @@ export interface CreateItemDTO {
   location: string;
   contactNumber: string;
   imageBuffer?: Buffer;
+  originalName?: string;
 }
 
 function validatePayload(dto: CreateItemDTO): void {
@@ -57,6 +57,28 @@ function validatePayload(dto: CreateItemDTO): void {
   }
 }
 
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+
+async function saveImageLocally(
+  buffer: Buffer,
+  originalName?: string
+): Promise<{ imageUrl: string; imagePublicId: string }> {
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+
+  const ext = originalName
+    ? path.extname(originalName)
+    : '.jpg';
+  const filename = `${crypto.randomUUID()}${ext}`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  await fs.writeFile(filePath, buffer);
+
+  return {
+    imageUrl: `/uploads/${filename}`,
+    imagePublicId: filename,
+  };
+}
+
 export async function createItem(dto: CreateItemDTO): Promise<IItem> {
   validatePayload(dto);
 
@@ -64,9 +86,9 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
   let imagePublicId: string | undefined;
 
   if (dto.imageBuffer) {
-    const uploaded = await uploadImageToCloudinary(dto.imageBuffer);
-    imageUrl = uploaded.url;
-    imagePublicId = uploaded.publicId;
+    const saved = await saveImageLocally(dto.imageBuffer, dto.originalName);
+    imageUrl = saved.imageUrl;
+    imagePublicId = saved.imagePublicId;
   }
 
   const item = await Item.create({
@@ -105,26 +127,14 @@ export async function getItemById(id: string): Promise<IItem | null> {
 }
 
 export async function deleteItem(id: string): Promise<boolean> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
   const item = await Item.findById(id);
   if (!item) return false;
 
   if (item.imagePublicId) {
     try {
-      await deleteImageFromCloudinary(item.imagePublicId);
+      await fs.unlink(path.join(UPLOADS_DIR, item.imagePublicId));
     } catch {
-      const err: Error & { statusCode?: number; isOperational?: boolean } =
-        new Error('Failed to remove image from Cloudinary. Please try again.');
-      err.statusCode = 502;
-      err.isOperational = true;
-      throw err;
+      // Ignore if file already removed from disk.
     }
   }
 
