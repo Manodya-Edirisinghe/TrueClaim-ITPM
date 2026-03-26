@@ -17,6 +17,8 @@ type MatchItem = {
   date: string;
   image: string;
   matchScore: number;
+  claimStatus?: 'open' | 'under_verification' | 'claim_verified' | 'claimed';
+  hasOwner?: boolean;
 };
 
 type ApiItem = {
@@ -27,11 +29,14 @@ type ApiItem = {
   location: string;
   time: string;
   imageUrl?: string | null;
+  claimStatus?: 'open' | 'under_verification' | 'claim_verified' | 'claimed';
+  hasOwner?: boolean;
 };
 
 const menuItems = [
   { name: 'Features', href: '#features' },
   { name: 'Match Items', href: '/matching' },
+  { name: 'Profile Alerts', href: '/profile' },
   { name: 'Universities', href: '#universities' },
   { name: 'Contact', href: '#contact' },
 ];
@@ -175,7 +180,9 @@ function MatchingPageContent() {
 
         const apiItems: ApiItem[] = response.data?.items ?? [];
 
-        const mapped: MatchItem[] = apiItems.map((entry) => ({
+        const mapped: MatchItem[] = apiItems
+          .filter((entry) => !entry.hasOwner && entry.claimStatus !== 'claimed')
+          .map((entry) => ({
           id: entry._id,
           itemType: entry.itemType,
           title: entry.itemTitle,
@@ -184,6 +191,8 @@ function MatchingPageContent() {
           date: toDateOnly(entry.time),
           image: entry.imageUrl || FALLBACK_IMAGE,
           matchScore: 0,
+          claimStatus: entry.claimStatus,
+          hasOwner: entry.hasOwner,
         }));
 
         setItems(mapped);

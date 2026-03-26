@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IItem extends Document {
   itemType: 'lost' | 'found';
@@ -10,6 +10,9 @@ export interface IItem extends Document {
   contactNumber: string;
   imageUrl?: string;
   imagePublicId?: string;
+  hasOwner: boolean;
+  claimStatus: 'open' | 'under_verification' | 'claim_verified' | 'claimed';
+  ownerClaimId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +61,20 @@ const itemSchema = new Schema<IItem>(
     },
     imagePublicId: {
       type: String,
+      default: null,
+    },
+    hasOwner: {
+      type: Boolean,
+      default: false,
+    },
+    claimStatus: {
+      type: String,
+      enum: ['open', 'under_verification', 'claim_verified', 'claimed'],
+      default: 'open',
+    },
+    ownerClaimId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Claim',
       default: null,
     },
   },
