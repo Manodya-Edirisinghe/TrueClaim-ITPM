@@ -7,11 +7,11 @@ export interface FormInputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 const formInputBaseClasses =
-  'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A66C2] focus-visible:ring-offset-1 focus-visible:border-[#0A66C2] ' +
-  'disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-gray-100 ' +
-  'file:border-0 file:bg-[#0A66C2] file:text-white file:rounded-md file:px-4 file:py-1.5 file:text-sm file:font-medium file:cursor-pointer file:mr-3 ' +
-  'selection:bg-[#0A66C2]/20 selection:text-gray-900';
+  'flex h-10 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/45 ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C3FF5] focus-visible:ring-offset-0 focus-visible:border-[#6C3FF5] ' +
+  'disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-black/20 ' +
+  'file:border-0 file:bg-[#6C3FF5] file:text-white file:rounded-md file:px-4 file:py-1.5 file:text-sm file:font-medium file:cursor-pointer file:mr-3 ' +
+  'selection:bg-[#6C3FF5]/20 selection:text-white';
 
 const FormInput = React.forwardRef<HTMLInputElement, FormInputProps>(
   ({ className, type = 'text', ...props }, ref) => {
