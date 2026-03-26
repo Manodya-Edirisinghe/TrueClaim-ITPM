@@ -12,6 +12,8 @@ import itemRoutes from './routes/item.routes';
 import messageRoutes from './routes/message.routes';
 import claimRoutes from './routes/claim.routes';
 import adminRoutes from './routes/admin.routes';
+import feedbackRoutes from './routes/feedbackRoutes';
+import authRoutes from './routes/authRoutes';
 
 dotenv.config();
 
@@ -50,7 +52,8 @@ app.use('/api/items', itemRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/claims', claimRoutes);
 app.use('/api/admin', adminRoutes);
-
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/auth', authRoutes);
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
