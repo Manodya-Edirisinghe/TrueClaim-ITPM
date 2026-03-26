@@ -5,7 +5,7 @@ import axios from 'axios';
 // Usage: import api from '@/lib/axios'; then api.get('/items')
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5001/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
