@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import api from "@/lib/axios";
-import { LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Bell, LayoutDashboard, ShieldCheck } from "lucide-react";
 
 type ClaimItem = {
   _id: string;
@@ -52,6 +52,18 @@ type LostFoundItem = {
   claimableQueueRemainingMs?: number | null;
   needsOwnerReclaim?: boolean;
 };
+
+type ItemNotification = {
+  id: string;
+  itemId?: string;
+  itemType: "lost" | "found";
+  itemTitle: string;
+  location: string;
+  createdAt?: string;
+  detectedAt: string;
+};
+
+const LAST_SEEN_ITEM_CREATED_AT_KEY = "verification_dashboard_last_seen_item_created_at_ms";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "Countdown ended";
@@ -193,11 +205,13 @@ function LostFoundItemCard({
 
 export default function VerificationDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "verification">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "verification" | "notifications">("overview");
   const [claims, setClaims] = useState<VerificationClaim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(true);
   const [lostItems, setLostItems] = useState<LostFoundItem[]>([]);
   const [foundItems, setFoundItems] = useState<LostFoundItem[]>([]);
+  const [itemNotifications, setItemNotifications] = useState<ItemNotification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [lostSearch, setLostSearch] = useState("");
   const [foundSearch, setFoundSearch] = useState("");
   const [loadingItems, setLoadingItems] = useState(false);
@@ -207,6 +221,12 @@ export default function VerificationDashboardPage() {
   const [resumingQueueItemId, setResumingQueueItemId] = useState<string | null>(null);
   const [sendingReclaimItemId, setSendingReclaimItemId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const knownItemIdsRef = useRef<Set<string>>(new Set());
+  const hasInitializedItemSnapshotRef = useRef(false);
+  const previousTotalsRef = useRef<{ lost: number; found: number }>({ lost: 0, found: 0 });
+  const lastSeenItemCreatedAtMsRef = useRef(0);
+  const hasInitializedLastSeenRef = useRef(false);
+  const hasStoredLastSeenRef = useRef(false);
 
   const loadClaims = async () => {
     try {
@@ -241,26 +261,168 @@ export default function VerificationDashboardPage() {
           params: {
             itemType: "lost",
             page: 1,
-            limit: 6,
+            limit: 50,
           },
         }),
         api.get("/items", {
           params: {
             itemType: "found",
             page: 1,
-            limit: 6,
+            limit: 50,
           },
         }),
       ]);
 
-      setLostItems((lostResponse.data?.items ?? []) as LostFoundItem[]);
-      setFoundItems((foundResponse.data?.items ?? []) as LostFoundItem[]);
+      const nextLostItems = (lostResponse.data?.items ?? []) as LostFoundItem[];
+      const nextFoundItems = (foundResponse.data?.items ?? []) as LostFoundItem[];
+      const nextLostTotal = Number(lostResponse.data?.meta?.total ?? nextLostItems.length);
+      const nextFoundTotal = Number(foundResponse.data?.meta?.total ?? nextFoundItems.length);
+      const fetchedItems = [...nextLostItems, ...nextFoundItems];
+      const createdAtDetectedItems = hasInitializedLastSeenRef.current
+        ? fetchedItems.filter((item) => {
+            if (!item.createdAt) return false;
+            const createdAtMs = new Date(item.createdAt).getTime();
+            return !Number.isNaN(createdAtMs) && createdAtMs > lastSeenItemCreatedAtMsRef.current;
+          })
+        : [];
+
+      if (!hasInitializedItemSnapshotRef.current) {
+        if (hasStoredLastSeenRef.current && createdAtDetectedItems.length > 0) {
+          const detectedAt = new Date().toISOString();
+
+          setItemNotifications((previous) => {
+            const next = createdAtDetectedItems.map((item) => ({
+              id: `${item._id}-${detectedAt}`,
+              itemId: item._id,
+              itemType: item.itemType,
+              itemTitle: item.itemTitle,
+              location: item.location,
+              createdAt: item.createdAt,
+              detectedAt,
+            }));
+
+            return [...next, ...previous].slice(0, 100);
+          });
+
+          setUnreadNotificationCount((count) => count + createdAtDetectedItems.length);
+        }
+
+        knownItemIdsRef.current = new Set(fetchedItems.map((item) => item._id));
+        previousTotalsRef.current = { lost: nextLostTotal, found: nextFoundTotal };
+        hasInitializedItemSnapshotRef.current = true;
+      } else {
+        const newlyAddedById = fetchedItems.filter((item) => !knownItemIdsRef.current.has(item._id));
+        const combinedNewItemsMap = new Map<string, LostFoundItem>();
+
+        for (const item of [...newlyAddedById, ...createdAtDetectedItems]) {
+          combinedNewItemsMap.set(item._id, item);
+        }
+
+        const newlyAddedItems = Array.from(combinedNewItemsMap.values());
+        const newLostById = newlyAddedItems.filter((item) => item.itemType === "lost");
+        const newFoundById = newlyAddedItems.filter((item) => item.itemType === "found");
+        const lostDelta = Math.max(nextLostTotal - previousTotalsRef.current.lost, 0);
+        const foundDelta = Math.max(nextFoundTotal - previousTotalsRef.current.found, 0);
+        const extraLostCount = Math.max(lostDelta - newLostById.length, 0);
+        const extraFoundCount = Math.max(foundDelta - newFoundById.length, 0);
+
+        if (newlyAddedItems.length > 0 || extraLostCount > 0 || extraFoundCount > 0) {
+          const detectedAt = new Date().toISOString();
+
+          setItemNotifications((previous) => {
+            const next = newlyAddedItems.map((item) => ({
+              id: `${item._id}-${detectedAt}`,
+              itemId: item._id,
+              itemType: item.itemType,
+              itemTitle: item.itemTitle,
+              location: item.location,
+              createdAt: item.createdAt,
+              detectedAt,
+            }));
+
+            const summaryNotifications: ItemNotification[] = [];
+
+            if (extraLostCount > 0) {
+              summaryNotifications.push({
+                id: `lost-summary-${detectedAt}`,
+                itemType: "lost",
+                itemTitle: `${extraLostCount} new lost item(s) added`,
+                location: "Database",
+                detectedAt,
+              });
+            }
+
+            if (extraFoundCount > 0) {
+              summaryNotifications.push({
+                id: `found-summary-${detectedAt}`,
+                itemType: "found",
+                itemTitle: `${extraFoundCount} new found item(s) added`,
+                location: "Database",
+                detectedAt,
+              });
+            }
+
+            return [...summaryNotifications, ...next, ...previous].slice(0, 100);
+          });
+
+          setUnreadNotificationCount((count) => count + newlyAddedItems.length + extraLostCount + extraFoundCount);
+        }
+
+        for (const item of fetchedItems) {
+          knownItemIdsRef.current.add(item._id);
+        }
+
+        previousTotalsRef.current = { lost: nextLostTotal, found: nextFoundTotal };
+      }
+
+      if (hasInitializedLastSeenRef.current) {
+        let maxCreatedAtMs = lastSeenItemCreatedAtMsRef.current;
+
+        for (const item of fetchedItems) {
+          if (!item.createdAt) continue;
+          const createdAtMs = new Date(item.createdAt).getTime();
+          if (!Number.isNaN(createdAtMs) && createdAtMs > maxCreatedAtMs) {
+            maxCreatedAtMs = createdAtMs;
+          }
+        }
+
+        if (maxCreatedAtMs > lastSeenItemCreatedAtMsRef.current) {
+          lastSeenItemCreatedAtMsRef.current = maxCreatedAtMs;
+          localStorage.setItem(LAST_SEEN_ITEM_CREATED_AT_KEY, String(maxCreatedAtMs));
+        }
+      }
+
+      setLostItems(nextLostItems);
+      setFoundItems(nextFoundItems);
     } catch {
       toast.error("Failed to load lost and found items.");
     } finally {
       setLoadingItems(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === "notifications" && unreadNotificationCount > 0) {
+      setUnreadNotificationCount(0);
+    }
+  }, [activeTab, unreadNotificationCount]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(LAST_SEEN_ITEM_CREATED_AT_KEY);
+    const parsed = stored ? Number(stored) : Number.NaN;
+
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      hasStoredLastSeenRef.current = true;
+      lastSeenItemCreatedAtMsRef.current = parsed;
+    } else {
+      hasStoredLastSeenRef.current = false;
+      const now = Date.now();
+      lastSeenItemCreatedAtMsRef.current = now;
+      localStorage.setItem(LAST_SEEN_ITEM_CREATED_AT_KEY, String(now));
+    }
+
+    hasInitializedLastSeenRef.current = true;
+  }, []);
 
   useEffect(() => {
     void loadClaims();
@@ -316,6 +478,20 @@ export default function VerificationDashboardPage() {
       })
       .sort((a, b) => a.remainingMs - b.remainingMs);
   }, [lostItems, foundItems]);
+
+  const pendingVerificationCount = useMemo(() => {
+    const queuedItemIds = new Set(queuedPendingItems.map((item) => item._id));
+    let total = queuedPendingItems.length;
+
+    for (const claim of pendingClaims) {
+      const claimItemId = claim.itemId?._id;
+      if (claimItemId && !queuedItemIds.has(claimItemId)) {
+        total += 1;
+      }
+    }
+
+    return total;
+  }, [queuedPendingItems, pendingClaims]);
 
   const handleAddToPendingQueue = async (item: LostFoundItem) => {
     try {
@@ -464,6 +640,27 @@ export default function VerificationDashboardPage() {
               </span>
               <span>Verification</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("notifications")}
+              className={`flex w-full items-center justify-between gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+                activeTab === "notifications"
+                  ? "border-amber-100 bg-white text-[#0A66C2] shadow-xl"
+                  : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
+              }`}
+            >
+              <span className="flex items-center gap-4">
+                <span className="grid h-12 w-12 place-content-center rounded-xl bg-amber-50 text-amber-600 shadow-inner">
+                  <Bell className="h-6 w-6" />
+                </span>
+                <span>Notifications</span>
+              </span>
+              {unreadNotificationCount > 0 ? (
+                <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                  {unreadNotificationCount}
+                </span>
+              ) : null}
+            </button>
           </div>
         </aside>
 
@@ -493,7 +690,7 @@ export default function VerificationDashboardPage() {
             </div>
           </div>
 
-          <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-gray-200 bg-gray-100 p-2 lg:hidden">
+          <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-gray-200 bg-gray-100 p-2 lg:hidden">
             <button
               type="button"
               onClick={() => setActiveTab("overview")}
@@ -512,6 +709,15 @@ export default function VerificationDashboardPage() {
             >
               Verification
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("notifications")}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                activeTab === "notifications" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
+              }`}
+            >
+              Notifications {unreadNotificationCount > 0 ? `(${unreadNotificationCount})` : ""}
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto pr-1">
@@ -520,7 +726,7 @@ export default function VerificationDashboardPage() {
                 <section className="grid gap-4 sm:grid-cols-3">
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-600">Pending Verification</p>
-                    <p className="mt-1 text-3xl font-bold">{pendingClaims.length}</p>
+                    <p className="mt-1 text-3xl font-bold">{pendingVerificationCount}</p>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <p className="text-xs uppercase tracking-wide text-gray-600">Claim Verified</p>
@@ -683,9 +889,7 @@ export default function VerificationDashboardPage() {
 
                 {loadingClaims ? (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">Loading verification queue...</div>
-                ) : pendingClaims.length === 0 ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">No active verification claims.</div>
-                ) : (
+                ) : pendingClaims.length === 0 ? null : (
                   <div className="space-y-4">
                     {pendingClaims.map((claim) => {
                       const remaining = Math.max(new Date(claim.verificationEndsAt).getTime() - Date.now(), 0);
@@ -756,6 +960,37 @@ export default function VerificationDashboardPage() {
                     </div>
                   )}
                 </div>
+              </section>
+            )}
+
+            {activeTab === "notifications" && (
+              <section className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">New Item Notifications</h2>
+                  <span className="text-sm text-gray-600">{itemNotifications.length} total</span>
+                </div>
+
+                {itemNotifications.length === 0 ? (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    No notifications yet. New lost/found items will appear here automatically.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {itemNotifications.map((notification) => (
+                      <article key={notification.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <p className="text-sm font-semibold text-black">
+                          New {notification.itemType} item added: {notification.itemTitle}
+                        </p>
+                        <p className="text-xs text-gray-700">Item ID: {notification.itemId}</p>
+                        <p className="text-xs text-gray-700">Location: {notification.location}</p>
+                        <p className="text-xs text-gray-700">
+                          Item Created At: {notification.createdAt ? formatItemDateTime(notification.createdAt) : "-"}
+                        </p>
+                        <p className="text-xs text-gray-700">Detected At: {formatItemDateTime(notification.detectedAt)}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </section>
             )}
           </div>
