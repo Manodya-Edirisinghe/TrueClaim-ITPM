@@ -1,9 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Sparkles } from 'lucide-react';
 import MatchingForm, { MatchSearchFilters } from '@/components/matching/MatchingForm';
 import ResultCard from '@/components/matching/ResultCard';
 import api, { resolveImageUrl } from '@/lib/axios';
@@ -28,13 +26,6 @@ type ApiItem = {
   time: string;
   imageUrl?: string | null;
 };
-
-const menuItems = [
-  { name: 'Features', href: '#features' },
-  { name: 'Match Items', href: '/matching' },
-  { name: 'Universities', href: '#universities' },
-  { name: 'Contact', href: '#contact' },
-];
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim/600/400';
 
@@ -227,28 +218,7 @@ function MatchingPageContent() {
   };
 
   return (
-    <main className="min-h-screen bg-[#05070c] text-white">
-      <header className="border-b border-white/10 bg-black/20">
-        <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
-          <Link href="/landing" aria-label="home" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A66C2]">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">TrueClaim</span>
-          </Link>
-
-          <ul className="hidden items-center gap-7 text-sm md:flex">
-            {menuItems.map((item) => (
-              <li key={item.name}>
-                <Link href={item.href} className="text-white/65 transition hover:text-white">
-                  {item.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </header>
-
+    <main className="min-h-screen bg-[#05070c] text-white pt-24">
       <section className="mx-auto grid w-full max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[360px_1fr] lg:px-10">
         <div>
           <h1 className="mb-2 text-2xl font-semibold">Item Matching</h1>
