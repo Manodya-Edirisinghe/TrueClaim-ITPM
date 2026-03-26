@@ -46,6 +46,11 @@ type LostFoundItem = {
   createdAt?: string;
   updatedAt?: string;
   imageUrl?: string | null;
+  claimableQueueStartedAt?: string | null;
+  claimableQueueEndsAt?: string | null;
+  claimableQueuePaused?: boolean;
+  claimableQueueRemainingMs?: number | null;
+  needsOwnerReclaim?: boolean;
 };
 
 function formatCountdown(ms: number): string {
@@ -55,6 +60,18 @@ function formatCountdown(ms: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function getUniqueVerificationQuestions(claim: VerificationClaim): string[] {
+  const itemTitle = claim.itemId?.itemTitle ?? "item";
+
+  return [
+    `What is one hidden or personal mark on the ${itemTitle}?`,
+    `Tell the exact location and date where you lost this ${itemTitle}.`,
+    "What accessories or stickers were attached to the item at the time it was lost?",
+    "Share one proof of ownership (invoice photo, old photo, or warranty detail).",
+    "Confirm the serial number or lock pattern and explain where it appears on the item.",
+  ];
 }
 
 function MeetingForm({
@@ -124,7 +141,18 @@ function formatItemDateTime(value: string): string {
   return parsed.toLocaleString();
 }
 
-function LostFoundItemCard({ item }: { item: LostFoundItem }) {
+function LostFoundItemCard({
+  item,
+  onQueue,
+  queueing,
+}: {
+  item: LostFoundItem;
+  onQueue: (item: LostFoundItem) => void;
+  queueing: boolean;
+}) {
+  const isQueued = Boolean(item.claimableQueueEndsAt) && item.claimStatus === "under_verification";
+  const isPaused = Boolean(item.claimableQueuePaused);
+
   return (
     <article className="rounded-md border border-gray-200 bg-white p-3">
       <p className="text-sm font-semibold text-black">{item.itemTitle}</p>
@@ -138,10 +166,26 @@ function LostFoundItemCard({ item }: { item: LostFoundItem }) {
         <p>Contact: {item.contactNumber}</p>
         <p>Claim Status: {item.claimStatus ?? "open"}</p>
         <p>Has Owner: {item.hasOwner ? "Yes" : "No"}</p>
+        <p>Needs Reclaim: {item.needsOwnerReclaim ? "Yes" : "No"}</p>
         <p>Owner Claim ID: {item.ownerClaimId ?? "-"}</p>
         <p>Item Date: {formatItemDateTime(item.time)}</p>
         <p>Created At: {item.createdAt ? formatItemDateTime(item.createdAt) : "-"}</p>
         <p>Updated At: {item.updatedAt ? formatItemDateTime(item.updatedAt) : "-"}</p>
+      </div>
+
+      <div className="mt-3">
+        <button
+          type="button"
+          disabled={queueing || isQueued || isPaused || item.claimStatus === "claimed"}
+          onClick={() => onQueue(item)}
+          className="rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {queueing
+            ? "Adding to queue..."
+            : isQueued || isPaused
+              ? "Already in 48h Queue"
+              : "Add to 48h Pending Queue"}
+        </button>
       </div>
     </article>
   );
@@ -157,6 +201,11 @@ export default function VerificationDashboardPage() {
   const [lostSearch, setLostSearch] = useState("");
   const [foundSearch, setFoundSearch] = useState("");
   const [loadingItems, setLoadingItems] = useState(false);
+  const [queueingItemId, setQueueingItemId] = useState<string | null>(null);
+  const [stoppingQueueItemId, setStoppingQueueItemId] = useState<string | null>(null);
+  const [pausingQueueItemId, setPausingQueueItemId] = useState<string | null>(null);
+  const [resumingQueueItemId, setResumingQueueItemId] = useState<string | null>(null);
+  const [sendingReclaimItemId, setSendingReclaimItemId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
   const loadClaims = async () => {
@@ -238,6 +287,105 @@ export default function VerificationDashboardPage() {
     () => claims.filter((claim) => claim.status === "claim_verified"),
     [claims]
   );
+
+  const multiClaimerClaims = useMemo(
+    () => claims.filter((claim) => claim.claimerCount > 1),
+    [claims]
+  );
+
+  const queuedPendingItems = useMemo(() => {
+    const allItems = [...lostItems, ...foundItems];
+
+    return allItems
+      .filter(
+        (item) =>
+          item.claimStatus === "under_verification" && (item.claimableQueueEndsAt || item.claimableQueuePaused)
+      )
+      .map((item) => {
+        const remainingMs = item.claimableQueuePaused
+          ? Math.max(item.claimableQueueRemainingMs ?? 0, 0)
+          : Math.max(
+              (item.claimableQueueEndsAt ? new Date(item.claimableQueueEndsAt).getTime() : 0) - Date.now(),
+              0
+            );
+
+        return {
+          ...item,
+          remainingMs,
+        };
+      })
+      .sort((a, b) => a.remainingMs - b.remainingMs);
+  }, [lostItems, foundItems]);
+
+  const handleAddToPendingQueue = async (item: LostFoundItem) => {
+    try {
+      setQueueingItemId(item._id);
+      await api.post(`/items/${item._id}/queue-claimable`);
+      toast.success("Item added to 48-hour pending queue.");
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to add item to pending queue.");
+    } finally {
+      setQueueingItemId(null);
+    }
+  };
+
+  const handleStopQueue = async (item: LostFoundItem) => {
+    try {
+      setStoppingQueueItemId(item._id);
+      await api.post(`/items/${item._id}/stop-queue`);
+      toast.success("Countdown stopped for this item.");
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to stop queue countdown.");
+    } finally {
+      setStoppingQueueItemId(null);
+    }
+  };
+
+  const handlePauseQueue = async (item: LostFoundItem) => {
+    try {
+      setPausingQueueItemId(item._id);
+      await api.post(`/items/${item._id}/pause-queue`);
+      toast.success("Countdown paused for this item.");
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to pause queue countdown.");
+    } finally {
+      setPausingQueueItemId(null);
+    }
+  };
+
+  const handleResumeQueue = async (item: LostFoundItem) => {
+    try {
+      setResumingQueueItemId(item._id);
+      await api.post(`/items/${item._id}/resume-queue`);
+      toast.success("Countdown resumed for this item.");
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to resume queue countdown.");
+    } finally {
+      setResumingQueueItemId(null);
+    }
+  };
+
+  const handleSendToReclaim = async (item: LostFoundItem) => {
+    try {
+      setSendingReclaimItemId(item._id);
+      await api.post(`/items/${item._id}/send-reclaim`);
+      toast.success("Item moved to reclaim list.");
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to move item to reclaim list.");
+    } finally {
+      setSendingReclaimItemId(null);
+    }
+  };
 
   const filteredLostItems = useMemo(() => {
     const query = lostSearch.trim().toLowerCase();
@@ -379,8 +527,8 @@ export default function VerificationDashboardPage() {
                     <p className="mt-1 text-3xl font-bold">{claimVerifiedClaims.length}</p>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-gray-600">Total Verification Queue</p>
-                    <p className="mt-1 text-3xl font-bold">{claims.length}</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Multi-Claimer Cases</p>
+                    <p className="mt-1 text-3xl font-bold">{multiClaimerClaims.length}</p>
                   </div>
                 </section>
 
@@ -388,6 +536,9 @@ export default function VerificationDashboardPage() {
                   <h2 className="text-lg font-semibold">Overview</h2>
                   <p className="mt-2 text-sm text-gray-700">
                     Use the Verification tab to review pending claims, watch countdown timers, and send meeting details when claims are eligible.
+                  </p>
+                  <p className="mt-2 text-sm text-gray-700">
+                    Every found-item claim enters a mandatory 48-hour verification countdown before collection can be scheduled.
                   </p>
                 </section>
 
@@ -416,7 +567,12 @@ export default function VerificationDashboardPage() {
                         ) : (
                           <div className="h-[460px] space-y-2 overflow-y-auto pr-1">
                             {filteredLostItems.map((item) => (
-                              <LostFoundItemCard key={item._id} item={item} />
+                              <LostFoundItemCard
+                                key={item._id}
+                                item={item}
+                                onQueue={handleAddToPendingQueue}
+                                queueing={queueingItemId === item._id}
+                              />
                             ))}
                             {filteredLostItems.length === 0 ? (
                               <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600">No lost items match your search.</p>
@@ -440,7 +596,12 @@ export default function VerificationDashboardPage() {
                         ) : (
                           <div className="h-[460px] space-y-2 overflow-y-auto pr-1">
                             {filteredFoundItems.map((item) => (
-                              <LostFoundItemCard key={item._id} item={item} />
+                              <LostFoundItemCard
+                                key={item._id}
+                                item={item}
+                                onQueue={handleAddToPendingQueue}
+                                queueing={queueingItemId === item._id}
+                              />
                             ))}
                             {filteredFoundItems.length === 0 ? (
                               <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600">No found items match your search.</p>
@@ -460,6 +621,66 @@ export default function VerificationDashboardPage() {
                   <h2 className="text-xl font-semibold">Claims Under Verification</h2>
                 </div>
 
+                <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-base font-semibold">Items In Manual 48-Hour Pending Queue</h3>
+                  {queuedPendingItems.length === 0 ? (
+                    <p className="mt-2 text-sm text-gray-600">No items in manual pending queue.</p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {queuedPendingItems.map((item) => (
+                        <article key={item._id} className="rounded-md border border-gray-200 bg-white p-3">
+                          <p className="text-sm font-semibold text-black">{item.itemTitle}</p>
+                          <p className="text-xs text-gray-700">Item ID: {item._id}</p>
+                          <p className="text-xs text-gray-700">Type: {item.itemType}</p>
+                          <p className="text-xs text-gray-700">Countdown: {formatCountdown(item.remainingMs)}</p>
+                          <p className="text-xs text-gray-700">
+                            Status: {item.claimableQueuePaused ? "Paused" : "Running"}
+                          </p>
+                          <p className="text-xs text-gray-700">
+                            Ends At: {item.claimableQueueEndsAt ? new Date(item.claimableQueueEndsAt).toLocaleString() : "-"}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleStopQueue(item)}
+                              disabled={stoppingQueueItemId === item._id}
+                              className="rounded-md border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {stoppingQueueItemId === item._id
+                                ? "Stopping..."
+                                : "Stop"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handlePauseQueue(item)}
+                              disabled={pausingQueueItemId === item._id || Boolean(item.claimableQueuePaused)}
+                              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {pausingQueueItemId === item._id ? "Pausing..." : "Pause"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleResumeQueue(item)}
+                              disabled={resumingQueueItemId === item._id || !Boolean(item.claimableQueuePaused)}
+                              className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {resumingQueueItemId === item._id ? "Resuming..." : "Resume"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleSendToReclaim(item)}
+                              disabled={sendingReclaimItemId === item._id}
+                              className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {sendingReclaimItemId === item._id ? "Sending..." : "Send To Reclaim"}
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
                 {loadingClaims ? (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">Loading verification queue...</div>
                 ) : pendingClaims.length === 0 ? (
@@ -469,6 +690,8 @@ export default function VerificationDashboardPage() {
                     {pendingClaims.map((claim) => {
                       const remaining = Math.max(new Date(claim.verificationEndsAt).getTime() - Date.now(), 0);
                       const canSchedule = remaining === 0;
+                      const needsExtraQuestions = claim.claimerCount > 1;
+                      const uniqueQuestions = getUniqueVerificationQuestions(claim);
 
                       return (
                         <article key={claim._id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
@@ -488,6 +711,19 @@ export default function VerificationDashboardPage() {
                               <p className="text-sm text-gray-700">Ends At: {new Date(claim.verificationEndsAt).toLocaleString()}</p>
                             </div>
                           </div>
+
+                          {needsExtraQuestions ? (
+                            <div className="mt-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                                Multiple users claimed this item. Ask unique verification questions before approval.
+                              </p>
+                              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-indigo-900">
+                                {uniqueQuestions.map((question) => (
+                                  <li key={question}>{question}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
 
                           {canSchedule ? (
                             <MeetingForm claim={claim} onScheduled={loadClaims} />

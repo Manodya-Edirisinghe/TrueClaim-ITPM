@@ -13,6 +13,11 @@ export interface IItem extends Document {
   hasOwner: boolean;
   claimStatus: 'open' | 'under_verification' | 'claim_verified' | 'claimed';
   ownerClaimId?: Types.ObjectId;
+  needsOwnerReclaim: boolean;
+  claimableQueueStartedAt?: Date | null;
+  claimableQueueEndsAt?: Date | null;
+  claimableQueuePaused: boolean;
+  claimableQueueRemainingMs?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -75,6 +80,29 @@ const itemSchema = new Schema<IItem>(
     ownerClaimId: {
       type: Schema.Types.ObjectId,
       ref: 'Claim',
+      default: null,
+    },
+    needsOwnerReclaim: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    claimableQueueStartedAt: {
+      type: Date,
+      default: null,
+    },
+    claimableQueueEndsAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    claimableQueuePaused: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    claimableQueueRemainingMs: {
+      type: Number,
       default: null,
     },
   },

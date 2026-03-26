@@ -91,3 +91,93 @@ export async function deleteItem(
     next(err);
   }
 }
+
+// POST /api/items/:id/queue-claimable
+export async function queueClaimableItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const item = await itemService.queueItemForClaimVerification(req.params.id);
+
+    res.json({
+      message: 'Item moved to pending verification queue for 48 hours.',
+      item,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/items/:id/stop-queue
+export async function stopQueuedClaimableItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const item = await itemService.stopClaimableQueue(req.params.id);
+
+    res.json({
+      message: 'Countdown stopped for this item.',
+      item,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/items/:id/pause-queue
+export async function pauseQueuedClaimableItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const item = await itemService.pauseClaimableQueue(req.params.id);
+
+    res.json({
+      message: 'Countdown paused for this item.',
+      item,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/items/:id/resume-queue
+export async function resumeQueuedClaimableItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const item = await itemService.resumeClaimableQueue(req.params.id);
+
+    res.json({
+      message: 'Countdown resumed for this item.',
+      item,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/items/:id/send-reclaim
+export async function sendQueuedItemToReclaim(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const item = await itemService.sendQueuedItemToReclaim(req.params.id);
+
+    res.json({
+      message: 'Item moved to reclaim list.',
+      item,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -219,8 +219,14 @@ export const createClaim = async (
 
     if (item.claimStatus === 'open') {
       item.claimStatus = 'under_verification';
-      await item.save();
     }
+
+    item.needsOwnerReclaim = false;
+    item.claimableQueueStartedAt = verificationStartedAt;
+    item.claimableQueueEndsAt = verificationEndsAt;
+    item.claimableQueuePaused = false;
+    item.claimableQueueRemainingMs = null;
+    await item.save();
 
     res.status(201).json({
       message: 'Claim submitted. Verification countdown started for 48 hours.',
@@ -282,6 +288,11 @@ export const verifyClaim = async (
 
     await Item.findByIdAndUpdate(claim.itemId, {
       claimStatus: 'claim_verified',
+      needsOwnerReclaim: false,
+      claimableQueueStartedAt: null,
+      claimableQueueEndsAt: null,
+      claimableQueuePaused: false,
+      claimableQueueRemainingMs: null,
     });
 
     res.json({
@@ -325,6 +336,11 @@ export const resolveClaim = async (
       item.hasOwner = true;
       item.ownerClaimId = claim._id as Types.ObjectId;
       item.claimStatus = 'claimed';
+      item.needsOwnerReclaim = false;
+      item.claimableQueueStartedAt = null;
+      item.claimableQueueEndsAt = null;
+      item.claimableQueuePaused = false;
+      item.claimableQueueRemainingMs = null;
     } else {
       claim.status = 'rejected';
 
@@ -335,6 +351,11 @@ export const resolveClaim = async (
 
       if (activeClaims <= 1) {
         item.claimStatus = 'open';
+        item.needsOwnerReclaim = true;
+        item.claimableQueueStartedAt = null;
+        item.claimableQueueEndsAt = null;
+        item.claimableQueuePaused = false;
+        item.claimableQueueRemainingMs = null;
       }
     }
 
