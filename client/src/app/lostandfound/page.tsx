@@ -346,14 +346,33 @@ function LostAndFoundPageContent() {
     else setActiveTab('lost');
   }, [tabParam]);
 
-  const handleLostSubmit = (data: FormData) => {
-    console.log('Lost item submitted:', data);
-    // TODO: send to API
+  const submitItem = async (itemType: 'lost' | 'found', data: FormData) => {
+    const payload = new window.FormData();
+    payload.append('itemType', itemType);
+    payload.append('itemTitle', data.itemTitle);
+    payload.append('itemCategory', data.itemCategory);
+    payload.append('description', data.description);
+    payload.append('time', data.time);
+    payload.append('location', data.location);
+    payload.append('contactNumber', data.contactNumber);
+    if (data.image) {
+      payload.append('image', data.image);
+    }
+
+    const response = await api.post('/items', payload);
+
+    const createdId = response.data?.item?._id;
+    if (createdId) rememberListingId(createdId);
+
+    router.push('/my-listings');
   };
 
-  const handleFoundSubmit = (data: FormData) => {
-    console.log('Found item submitted:', data);
-    // TODO: send to API
+  const handleLostSubmit = async (data: FormData) => {
+    await submitItem('lost', data);
+  };
+
+  const handleFoundSubmit = async (data: FormData) => {
+    await submitItem('found', data);
   };
 
   return (

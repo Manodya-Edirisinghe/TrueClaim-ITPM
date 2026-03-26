@@ -12,8 +12,13 @@ const api = axios.create({
   },
 });
 
-// Request interceptor – attach auth token if present
+// Request interceptor – set correct content type and attach auth token
 api.interceptors.request.use((config) => {
+  // Let the browser set the Content-Type (with boundary) for FormData
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+
   // TODO: attach JWT from localStorage / cookie
   // const token = localStorage.getItem('token');
   // if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -28,5 +33,15 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api';
+const SERVER_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+
+/** Resolve a server-relative image path (e.g. /uploads/x.jpg) to a full URL. */
+export function resolveImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${SERVER_ORIGIN}${path}`;
+}
 
 export default api;
