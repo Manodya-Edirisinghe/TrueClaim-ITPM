@@ -201,7 +201,7 @@ export default function MyListingsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
+    <main className="mx-auto max-w-5xl px-4 pt-24 py-6">
       <Link
         href="/lostandfound"
         className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:text-[#0A66C2]"

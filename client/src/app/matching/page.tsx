@@ -1,9 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Sparkles } from 'lucide-react';
 import MatchingForm, { MatchSearchFilters } from '@/components/matching/MatchingForm';
 import ResultCard from '@/components/matching/ResultCard';
 import api, { resolveImageUrl } from '@/lib/axios';
@@ -12,6 +10,7 @@ type MatchItem = {
   id: string;
   itemType: 'lost' | 'found';
   title: string;
+  description: string;
   category: string;
   location: string;
   date: string;
@@ -24,17 +23,11 @@ type ApiItem = {
   itemType: 'lost' | 'found';
   itemTitle: string;
   itemCategory: string;
+  description: string;
   location: string;
   time: string;
   imageUrl?: string | null;
 };
-
-const menuItems = [
-  { name: 'Features', href: '#features' },
-  { name: 'Match Items', href: '/matching' },
-  { name: 'Universities', href: '#universities' },
-  { name: 'Contact', href: '#contact' },
-];
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim/600/400';
 
@@ -43,34 +36,51 @@ function toDateOnly(value: string): string {
   return value.slice(0, 10);
 }
 
+function itemSearchText(item: MatchItem): string {
+  return [item.title, item.description, item.category, item.location].join(' ').toLowerCase();
+}
+
 function calculateMatchScore(
   item: MatchItem,
   filters: MatchSearchFilters,
   withImageAssist: boolean
 ): number {
-  let score = 50;
+  let score = 40;
+  const searchText = itemSearchText(item);
   const title = filters.title.trim().toLowerCase();
   const category = filters.category.trim().toLowerCase();
   const location = filters.location.trim().toLowerCase();
 
   if (title) {
-    if (item.title.toLowerCase() === title) score += 25;
-    else if (item.title.toLowerCase().includes(title)) score += 16;
+    if (item.title.toLowerCase() === title) score += 30;
+    else if (item.title.toLowerCase().includes(title)) score += 20;
   }
 
   if (category && category !== 'all') {
-    if (item.category.toLowerCase() === category) score += 18;
-    else if (item.category.toLowerCase().includes(category)) score += 10;
+    if (item.category.toLowerCase() === category) score += 15;
+    else if (item.category.toLowerCase().includes(category)) score += 8;
   }
 
   if (location) {
-    if (item.location.toLowerCase() === location) score += 12;
-    else if (item.location.toLowerCase().includes(location)) score += 7;
+    if (item.location.toLowerCase() === location) score += 10;
+    else if (item.location.toLowerCase().includes(location)) score += 5;
   }
 
-  if (withImageAssist) {
-    score += 8;
+  const keywords = filters.keywords
+    .split(/\s+/)
+    .map((w: string) => w.toLowerCase())
+    .filter(Boolean);
+
+  if (keywords.length > 0) {
+    let hits = 0;
+    for (const kw of keywords) {
+      if (searchText.includes(kw)) hits++;
+    }
+    const hitRate = hits / keywords.length;
+    score += Math.round(hitRate * 20);
   }
+
+  if (withImageAssist) score += 8;
 
   return Math.min(99, score);
 }
@@ -83,29 +93,35 @@ function filterItems(
   const normalizedTitle = filters.title.trim().toLowerCase();
   const normalizedCategory = filters.category.trim().toLowerCase();
   const normalizedLocation = filters.location.trim().toLowerCase();
+  const keywords = filters.keywords
+    .split(/\s+/)
+    .map((w: string) => w.toLowerCase())
+    .filter(Boolean);
 
   const filtered = items.filter((item) => {
-    const titleMatch = normalizedTitle
-      ? item.title.toLowerCase().includes(normalizedTitle)
-      : true;
+    if (normalizedTitle && !item.title.toLowerCase().includes(normalizedTitle)) {
+      return false;
+    }
 
-    const categoryMatch =
-      normalizedCategory && normalizedCategory !== 'all'
-        ? item.category.toLowerCase().includes(normalizedCategory)
-        : true;
+    if (
+      normalizedCategory &&
+      normalizedCategory !== 'all' &&
+      !item.category.toLowerCase().includes(normalizedCategory)
+    ) {
+      return false;
+    }
 
-    const locationMatch = normalizedLocation
-      ? item.location.toLowerCase().includes(normalizedLocation)
-      : true;
+    if (normalizedLocation && !item.location.toLowerCase().includes(normalizedLocation)) {
+      return false;
+    }
 
-    const itemDate = new Date(item.date).getTime();
-    const fromDate = filters.fromDate ? new Date(filters.fromDate).getTime() : null;
-    const toDate = filters.toDate ? new Date(filters.toDate).getTime() : null;
+    if (keywords.length > 0) {
+      const searchText = itemSearchText(item);
+      const hasAny = keywords.some((kw: string) => searchText.includes(kw));
+      if (!hasAny) return false;
+    }
 
-    const fromMatch = fromDate ? itemDate >= fromDate : true;
-    const toMatch = toDate ? itemDate <= toDate : true;
-
-    return titleMatch && categoryMatch && locationMatch && fromMatch && toMatch;
+    return true;
   });
 
   return filtered
@@ -130,10 +146,9 @@ function MatchingPageContent() {
   const initialFilters = useMemo<MatchSearchFilters>(
     () => ({
       title: searchParams.get('title') ?? '',
+      keywords: '',
       category: searchParams.get('category') ?? 'All',
       location: searchParams.get('location') ?? '',
-      fromDate: toDateOnly(searchParams.get('fromDate') ?? ''),
-      toDate: toDateOnly(searchParams.get('toDate') ?? ''),
     }),
     [searchParams]
   );
@@ -179,6 +194,7 @@ function MatchingPageContent() {
           id: entry._id,
           itemType: entry.itemType,
           title: entry.itemTitle,
+          description: entry.description ?? '',
           category: entry.itemCategory,
           location: entry.location,
           date: toDateOnly(entry.time),
@@ -227,42 +243,38 @@ function MatchingPageContent() {
   };
 
   return (
-    <main className="min-h-screen bg-[#05070c] text-white">
-      <header className="border-b border-white/10 bg-black/20">
-        <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
-          <Link href="/landing" aria-label="home" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A66C2]">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold tracking-tight">TrueClaim</span>
-          </Link>
+    <main className="min-h-screen bg-[#05070c] text-white pt-24">
+      <section className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10">
 
-          <ul className="hidden items-center gap-7 text-sm md:flex">
-            {menuItems.map((item) => (
-              <li key={item.name}>
-                <Link href={item.href} className="text-white/65 transition hover:text-white">
-                  {item.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </header>
-
-      <section className="mx-auto grid w-full max-w-7xl gap-6 px-6 py-8 lg:grid-cols-[360px_1fr] lg:px-10">
-        <div>
-          <h1 className="mb-2 text-2xl font-semibold">Item Matching</h1>
-          <p className="mb-5 text-sm text-white/60">
-            Search lost and found entries using basic fields or AI-assisted image matching.
-          </p>
-
-          {targetItemType ? (
-            <p className="mb-5 rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-200">
-              Showing best <strong>{targetItemType}</strong> matches based on your submitted{' '}
-              <strong>{sourceItemType}</strong> report.
+        {/* Header */}
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Item Matching</h1>
+            <p className="mt-1 text-sm text-white/60">
+              Search lost and found entries using basic fields or AI-assisted image matching.
             </p>
-          ) : null}
+          </div>
 
+          {uploadedImage && (
+            <div className="flex items-center gap-2 rounded-full border border-cyan-400/40 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-4 py-2 shadow-lg shadow-cyan-500/10">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
+              </span>
+              <span className="text-sm font-semibold text-cyan-200">Powered by AI</span>
+            </div>
+          )}
+        </div>
+
+        {targetItemType && (
+          <p className="mb-6 rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-200">
+            Showing best <strong>{targetItemType}</strong> matches based on your submitted{' '}
+            <strong>{sourceItemType}</strong> report.
+          </p>
+        )}
+
+        {/* Search form */}
+        <div className="mb-8">
           <MatchingForm
             categories={categories}
             imagePreviewUrl={imagePreviewUrl}
@@ -272,7 +284,8 @@ function MatchingPageContent() {
           />
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        {/* Results */}
+        <div>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">Matching Results</h2>
@@ -280,12 +293,6 @@ function MatchingPageContent() {
                 {results.length} item{results.length === 1 ? '' : 's'} found
               </p>
             </div>
-
-            {uploadedImage ? (
-              <span className="rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-1 text-xs font-semibold text-cyan-300">
-                Powered by AI
-              </span>
-            ) : null}
           </div>
 
           {loading ? (
@@ -298,10 +305,10 @@ function MatchingPageContent() {
             </div>
           ) : results.length === 0 ? (
             <div className="rounded-xl border border-white/10 bg-black/20 px-6 py-12 text-center text-sm text-white/60">
-              No matching items yet. Try changing the title, category, or location.
+              No matching items yet. Try adjusting the title, keywords, or category.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {results.map((item, index) => (
                 <ResultCard key={item.id} item={item} isHighlighted={Boolean(uploadedImage) && index < 3} />
               ))}
