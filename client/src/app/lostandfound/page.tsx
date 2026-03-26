@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,6 +10,23 @@ import { FormInput, FormSelect, FormTextarea } from '@/components/form';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import api from '@/lib/axios';
+
+const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
+
+function rememberListingId(id: string): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
+    const ids = raw ? (JSON.parse(raw) as string[]) : [];
+    if (!ids.includes(id)) {
+      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
+    }
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
 
 const ITEM_CATEGORIES = [
   'Wallet / Purse',
@@ -52,9 +70,9 @@ type ValidatedField =
 
 type FieldErrors = Partial<Record<ValidatedField, string>>;
 
-function formatDatetimeLocal(d: Date): string {
+function formatDateOnly(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function validateItemForm(data: FormData): FieldErrors {
@@ -112,12 +130,13 @@ function ItemForm({
 }: {
   type: 'lost' | 'found';
   title: string;
-  onSubmit: (data: FormData) => void;
+  onSubmit: (data: FormData) => Promise<void>;
 }) {
   const [data, setData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const datetimeMax = formatDatetimeLocal(new Date());
+  const dateMax = formatDateOnly(new Date());
 
   const clearFieldError = (field: ValidatedField) => {
     setErrors((prev) => {
@@ -149,7 +168,7 @@ function ItemForm({
     setData((prev) => ({ ...prev, image: file }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const nextErrors = validateItemForm(data);
     if (Object.keys(nextErrors).length > 0) {
@@ -157,13 +176,20 @@ function ItemForm({
       return;
     }
     setErrors({});
-    onSubmit(data);
-    toast.success(
-      type === 'lost'
-        ? 'Your lost item report was submitted successfully.'
-        : 'Your found item report was submitted successfully.'
-    );
-    setData(initialFormData);
+    try {
+      setIsSubmitting(true);
+      await onSubmit(data);
+      toast.success(
+        type === 'lost'
+          ? 'Your lost item report was submitted successfully.'
+          : 'Your found item report was submitted successfully.'
+      );
+      setData(initialFormData);
+    } catch {
+      toast.error('Failed to submit item. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formId = `${type}-item-form`;
@@ -250,14 +276,14 @@ function ItemForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor={`${formId}-time`}>Date & time</Label>
+          <Label htmlFor={`${formId}-time`}>Date</Label>
           <FormInput
             id={`${formId}-time`}
             name="time"
-            type="datetime-local"
+            type="date"
             value={data.time}
             onChange={handleChange}
-            max={datetimeMax}
+            max={dateMax}
             aria-invalid={!!errors.time}
             aria-describedby={errors.time ? errId('time') : undefined}
             className={cn(errors.time && fieldErrorInputClass)}
@@ -325,9 +351,12 @@ function ItemForm({
         <div className="pt-1 sm:col-span-2">
           <Button
             type="submit"
+            disabled={isSubmitting}
             className="w-full bg-[#0A66C2] hover:bg-[#0958a8] text-white sm:w-auto"
           >
-            Submit {type === 'lost' ? 'Lost' : 'Found'} Item
+            {isSubmitting
+              ? 'Submitting...'
+              : `Submit ${type === 'lost' ? 'Lost' : 'Found'} Item`}
           </Button>
         </div>
       </form>
@@ -336,6 +365,7 @@ function ItemForm({
 }
 
 function LostAndFoundPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 

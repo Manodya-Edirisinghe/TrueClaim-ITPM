@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs/promises';
 import crypto from 'crypto';
