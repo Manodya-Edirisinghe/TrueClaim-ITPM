@@ -46,7 +46,7 @@ export default function MatchingForm({
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-      {/* Main filters */}
+      {/* Main filters — horizontal row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <label className="mb-1.5 block text-xs font-medium text-white/70">

@@ -36,6 +36,7 @@ function toDateOnly(value: string): string {
   return value.slice(0, 10);
 }
 
+/** Build a searchable blob from all item fields */
 function itemSearchText(item: MatchItem): string {
   return [item.title, item.description, item.category, item.location].join(' ').toLowerCase();
 }
@@ -51,24 +52,28 @@ function calculateMatchScore(
   const category = filters.category.trim().toLowerCase();
   const location = filters.location.trim().toLowerCase();
 
+  // Title match (strongest signal)
   if (title) {
     if (item.title.toLowerCase() === title) score += 30;
     else if (item.title.toLowerCase().includes(title)) score += 20;
   }
 
+  // Category match
   if (category && category !== 'all') {
     if (item.category.toLowerCase() === category) score += 15;
     else if (item.category.toLowerCase().includes(category)) score += 8;
   }
 
+  // Location match
   if (location) {
     if (item.location.toLowerCase() === location) score += 10;
     else if (item.location.toLowerCase().includes(location)) score += 5;
   }
 
+  // Keyword match — each keyword that hits any field boosts the score
   const keywords = filters.keywords
     .split(/\s+/)
-    .map((w: string) => w.toLowerCase())
+    .map((w) => w.toLowerCase())
     .filter(Boolean);
 
   if (keywords.length > 0) {
@@ -95,14 +100,16 @@ function filterItems(
   const normalizedLocation = filters.location.trim().toLowerCase();
   const keywords = filters.keywords
     .split(/\s+/)
-    .map((w: string) => w.toLowerCase())
+    .map((w) => w.toLowerCase())
     .filter(Boolean);
 
   const filtered = items.filter((item) => {
+    // Title is required — must match
     if (normalizedTitle && !item.title.toLowerCase().includes(normalizedTitle)) {
       return false;
     }
 
+    // Category filter
     if (
       normalizedCategory &&
       normalizedCategory !== 'all' &&
@@ -111,13 +118,15 @@ function filterItems(
       return false;
     }
 
+    // Location filter
     if (normalizedLocation && !item.location.toLowerCase().includes(normalizedLocation)) {
       return false;
     }
 
+    // Keywords — item must match at least one keyword (if any provided)
     if (keywords.length > 0) {
       const searchText = itemSearchText(item);
-      const hasAny = keywords.some((kw: string) => searchText.includes(kw));
+      const hasAny = keywords.some((kw) => searchText.includes(kw));
       if (!hasAny) return false;
     }
 
