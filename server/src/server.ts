@@ -74,8 +74,21 @@ async function connectDB(): Promise<void> {
 const PORT = parseInt(process.env.PORT ?? '5000', 10);
 
 connectDB().then(() => {
-  httpServer.listen(PORT, () => {
+  const server = httpServer.listen(PORT, () => {
     console.log(`[Server] Running on http://localhost:${PORT}`);
+  });
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ Port ${PORT} is already in use`);
+      console.error(`\nSolutions:`);
+      console.error(`1. Kill the process: taskkill /PID <pid> /F`);
+      console.error(`2. Or use a different port: PORT=5001 npm run dev`);
+      console.error(`3. Or check what's using the port: netstat -ano | findstr :${PORT}\n`);
+      process.exit(1);
+    } else {
+      throw err;
+    }
   });
 });
 
