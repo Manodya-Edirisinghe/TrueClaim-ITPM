@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import api from "@/lib/axios";
+import { LayoutDashboard, ShieldCheck } from "lucide-react";
 
 type ClaimItem = {
   _id: string;
@@ -28,6 +29,23 @@ type VerificationClaim = {
   meetingLocation?: string;
   meetingDateTime?: string;
   itemId: ClaimItem;
+};
+
+type LostFoundItem = {
+  _id: string;
+  itemType: "lost" | "found";
+  itemTitle: string;
+  itemCategory: string;
+  description: string;
+  location: string;
+  contactNumber: string;
+  time: string;
+  claimStatus?: "open" | "under_verification" | "claim_verified" | "claimed";
+  hasOwner?: boolean;
+  ownerClaimId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  imageUrl?: string | null;
 };
 
 function formatCountdown(ms: number): string {
@@ -100,10 +118,61 @@ function MeetingForm({
   );
 }
 
-export default function AdminPage() {
+type DashboardPageProps = {
+  title?: string;
+  showLostFoundOverview?: boolean;
+};
+
+function formatItemDateTime(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function LostFoundItemCard({ item }: { item: LostFoundItem }) {
+  return (
+    <article className="rounded-md border border-gray-200 bg-white p-3">
+      {item.imageUrl ? (
+        <img
+          src={item.imageUrl}
+          alt={item.itemTitle}
+          className="mb-3 h-36 w-full rounded-md object-cover"
+        />
+      ) : null}
+
+      <p className="text-sm font-semibold text-black">{item.itemTitle}</p>
+      <p className="mt-1 text-xs text-gray-600">{item.description}</p>
+
+      <div className="mt-2 grid gap-1 text-xs text-gray-700 sm:grid-cols-2">
+        <p>Item ID: {item._id}</p>
+        <p>Type: {item.itemType}</p>
+        <p>Category: {item.itemCategory}</p>
+        <p>Location: {item.location}</p>
+        <p>Contact: {item.contactNumber}</p>
+        <p>Claim Status: {item.claimStatus ?? "open"}</p>
+        <p>Has Owner: {item.hasOwner ? "Yes" : "No"}</p>
+        <p>Owner Claim ID: {item.ownerClaimId ?? "-"}</p>
+        <p>Item Date: {formatItemDateTime(item.time)}</p>
+        <p>Created At: {item.createdAt ? formatItemDateTime(item.createdAt) : "-"}</p>
+        <p>Updated At: {item.updatedAt ? formatItemDateTime(item.updatedAt) : "-"}</p>
+      </div>
+    </article>
+  );
+}
+
+export function AdminPage({
+  title = "Admin Dashboard",
+  showLostFoundOverview = false,
+}: DashboardPageProps) {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"overview" | "verification">("overview");
   const [claims, setClaims] = useState<VerificationClaim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(true);
+  const [lostItems, setLostItems] = useState<LostFoundItem[]>([]);
+  const [foundItems, setFoundItems] = useState<LostFoundItem[]>([]);
+  const [lostSearch, setLostSearch] = useState("");
+  const [foundSearch, setFoundSearch] = useState("");
+  const [loadingItems, setLoadingItems] = useState(false);
   const [, setTick] = useState(0);
 
   const loadClaims = async () => {
@@ -131,9 +200,45 @@ export default function AdminPage() {
     }
   };
 
+  const loadLostFoundItems = async () => {
+    if (!showLostFoundOverview) return;
+
+    try {
+      setLoadingItems(true);
+      const [lostResponse, foundResponse] = await Promise.all([
+        api.get("/items", {
+          params: {
+            itemType: "lost",
+            page: 1,
+            limit: 6,
+          },
+        }),
+        api.get("/items", {
+          params: {
+            itemType: "found",
+            page: 1,
+            limit: 6,
+          },
+        }),
+      ]);
+
+      setLostItems((lostResponse.data?.items ?? []) as LostFoundItem[]);
+      setFoundItems((foundResponse.data?.items ?? []) as LostFoundItem[]);
+    } catch {
+      toast.error("Failed to load lost and found items.");
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
   useEffect(() => {
     void loadClaims();
   }, []);
+
+  useEffect(() => {
+    if (!showLostFoundOverview) return;
+    void loadLostFoundItems();
+  }, [showLostFoundOverview]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -153,6 +258,44 @@ export default function AdminPage() {
     [claims]
   );
 
+  const filteredLostItems = useMemo(() => {
+    const query = lostSearch.trim().toLowerCase();
+    if (!query) return lostItems;
+
+    return lostItems.filter((item) =>
+      [
+        item.itemTitle,
+        item.itemCategory,
+        item.location,
+        item.description,
+        item.contactNumber,
+        item.claimStatus,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [lostItems, lostSearch]);
+
+  const filteredFoundItems = useMemo(() => {
+    const query = foundSearch.trim().toLowerCase();
+    if (!query) return foundItems;
+
+    return foundItems.filter((item) =>
+      [
+        item.itemTitle,
+        item.itemCategory,
+        item.location,
+        item.description,
+        item.contactNumber,
+        item.claimStatus,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [foundItems, foundSearch]);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -160,17 +303,56 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white px-4 py-6 text-black">
-      <div className="mx-auto max-w-6xl">
+    <div className={`${showLostFoundOverview ? "h-screen overflow-hidden" : "min-h-screen"} bg-white py-6 pr-4 text-black sm:pr-6`}>
+      <div className="flex h-full w-full gap-6">
+        <aside className="sticky top-6 hidden h-fit w-72 shrink-0 rounded-r-3xl border border-gray-200 bg-gray-100 p-4 shadow-xl lg:block">
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab("overview")}
+              className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+                activeTab === "overview"
+                  ? "border-blue-100 bg-white text-[#0A66C2] shadow-xl"
+                  : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
+              }`}
+            >
+              <span className="grid h-12 w-12 place-content-center rounded-xl bg-blue-50 text-[#0A66C2] shadow-inner">
+                <LayoutDashboard className="h-6 w-6" />
+              </span>
+              <span>Overview</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("verification")}
+              className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+                activeTab === "verification"
+                  ? "border-emerald-100 bg-white text-[#0A66C2] shadow-xl"
+                  : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
+              }`}
+            >
+              <span className="grid h-12 w-12 place-content-center rounded-xl bg-emerald-50 text-emerald-600 shadow-inner">
+                <ShieldCheck className="h-6 w-6" />
+              </span>
+              <span>Verification</span>
+            </button>
+          </div>
+        </aside>
+
+        <div className="flex flex-1 flex-col overflow-hidden">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
             <p className="text-sm text-gray-600">Manage claim verification with 48-hour countdowns.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void loadClaims()}
+              onClick={() => {
+                void loadClaims();
+                if (showLostFoundOverview) {
+                  void loadLostFoundItems();
+                }
+              }}
               className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100"
             >
               Refresh
@@ -184,7 +366,31 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <section className="mb-6 grid gap-4 sm:grid-cols-3">
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-gray-200 bg-gray-100 p-2 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setActiveTab("overview")}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              activeTab === "overview" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("verification")}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              activeTab === "verification" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
+            }`}
+          >
+            Verification
+          </button>
+        </div>
+
+        <div className={showLostFoundOverview ? "flex-1 overflow-y-auto pr-1" : ""}>
+        {activeTab === "overview" && (
+          <section className="space-y-6">
+            <section className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-xs uppercase tracking-wide text-gray-600">Pending Verification</p>
             <p className="mt-1 text-3xl font-bold">{pendingClaims.length}</p>
@@ -197,9 +403,81 @@ export default function AdminPage() {
             <p className="text-xs uppercase tracking-wide text-gray-600">Total Verification Queue</p>
             <p className="mt-1 text-3xl font-bold">{claims.length}</p>
           </div>
-        </section>
+            </section>
 
-        <section className="space-y-6">
+            <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <h2 className="text-lg font-semibold">Overview</h2>
+              <p className="mt-2 text-sm text-gray-700">
+                Use the Verification tab to review pending claims, watch countdown timers, and send meeting details when claims are eligible.
+              </p>
+            </section>
+
+            {showLostFoundOverview && (
+              <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Lost and Found Items</h2>
+                  <span className="text-xs text-gray-600">Latest from database</span>
+                </div>
+
+                {loadingItems ? (
+                  <p className="text-sm text-gray-600">Loading lost and found items...</p>
+                ) : (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Lost Items</h3>
+                        <input
+                          value={lostSearch}
+                          onChange={(event) => setLostSearch(event.target.value)}
+                          placeholder="Search lost items"
+                          className="w-44 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-black outline-none focus:border-[#0A66C2]"
+                        />
+                      </div>
+                      {lostItems.length === 0 ? (
+                        <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600">No lost items found.</p>
+                      ) : (
+                        <div className="h-[460px] space-y-2 overflow-y-auto pr-1">
+                          {filteredLostItems.map((item) => (
+                            <LostFoundItemCard key={item._id} item={item} />
+                          ))}
+                          {filteredLostItems.length === 0 ? (
+                            <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600">No lost items match your search.</p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Found Items</h3>
+                        <input
+                          value={foundSearch}
+                          onChange={(event) => setFoundSearch(event.target.value)}
+                          placeholder="Search found items"
+                          className="w-44 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-black outline-none focus:border-[#0A66C2]"
+                        />
+                      </div>
+                      {foundItems.length === 0 ? (
+                        <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600">No found items found.</p>
+                      ) : (
+                        <div className="h-[460px] space-y-2 overflow-y-auto pr-1">
+                          {filteredFoundItems.map((item) => (
+                            <LostFoundItemCard key={item._id} item={item} />
+                          ))}
+                          {filteredFoundItems.length === 0 ? (
+                            <p className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-600">No found items match your search.</p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+          </section>
+        )}
+
+        {activeTab === "verification" && <section className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Claims Under Verification</h2>
           </div>
@@ -262,8 +540,14 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-        </section>
+        </section>}
+        </div>
+        </div>
       </div>
     </div>
   );
+}
+
+export default function AdminRoute() {
+  return <AdminPage />;
 }
