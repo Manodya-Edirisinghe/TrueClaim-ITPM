@@ -32,7 +32,7 @@ const transitionVariants = {
 
 const menuItems = [
   { name: 'Features',     href: '#features' },
-  { name: 'Match Items',  href: '/match-items' },
+  { name: 'Match Items',  href: '/matching' },
   { name: 'Feedback',     href: '/feedback' },
   { name: 'Universities', href: '#universities' },
   { name: 'Contact',      href: '#contact' },
