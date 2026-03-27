@@ -32,16 +32,32 @@ export default function AdvancedFilters({
   };
 
   return (
-    <div className="rounded-2xl border border-cyan-400/25 bg-gradient-to-r from-cyan-500/[0.07] to-blue-500/[0.07] p-4">
+    <div className="group/af relative rounded-2xl border border-cyan-400/25 bg-gradient-to-r from-cyan-500/[0.07] to-blue-500/[0.07] p-4 transition-shadow duration-500 hover:shadow-[0_0_25px_rgba(34,211,238,0.12)]">
+      {/* Animated glow border */}
+      <div className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition-opacity duration-500 group-hover/af:opacity-100"
+        style={{
+          background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.15), transparent)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 2s ease-in-out infinite',
+        }}
+      />
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-white transition hover:bg-white/5"
+        className="relative flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium text-white transition hover:bg-white/5"
       >
         <div className="flex items-center gap-2.5">
-          <Sparkles className="h-4 w-4 text-cyan-400" />
+          <Sparkles className="h-4 w-4 text-cyan-400 animate-pulse" />
           <span>Advanced Filtering</span>
-          <span className="rounded-full border border-cyan-400/40 bg-cyan-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+          <span className="relative rounded-full border border-cyan-400/40 bg-cyan-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+            <span className="absolute inset-0 rounded-full animate-ping bg-cyan-400/20" />
             AI Powered
           </span>
         </div>

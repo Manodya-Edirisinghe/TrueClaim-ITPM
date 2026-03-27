@@ -78,7 +78,6 @@ export default function MatchingForm({
             placeholder="e.g., black leather library"
             className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
           />
-          <p className="mt-1 text-[10px] text-white/40">Matches across title, description, category & location</p>
         </div>
 
         <div>
@@ -96,8 +95,8 @@ export default function MatchingForm({
           </select>
         </div>
 
-        <div className="grid grid-rows-[auto_1fr] gap-1.5">
-          <label className="block text-xs font-medium text-white/70">Location</label>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-white/70">Location</label>
           <div className="flex gap-2">
             <input
               type="text"

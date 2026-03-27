@@ -409,19 +409,11 @@ function LostAndFoundPageContent() {
 
     toast.success(
       itemType === 'lost'
-        ? 'Lost item submitted. Showing best found matches.'
-        : 'Found item submitted. Showing best lost matches.'
+        ? 'Your lost item report was submitted successfully.'
+        : 'Your found item report was submitted successfully.'
     );
 
-    const params = new URLSearchParams({
-      itemType,
-      title: data.itemTitle,
-      category: data.itemCategory,
-      location: data.location,
-      fromDate: data.time.slice(0, 10),
-    });
-
-    router.push(`/matching?${params.toString()}`);
+    router.push('/my-listings');
   };
 
   const handleLostSubmit = async (data: FormData) => {

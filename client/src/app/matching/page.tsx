@@ -15,6 +15,7 @@ type MatchItem = {
   location: string;
   date: string;
   image: string;
+  contactNumber?: string;
   matchScore: number;
   ownerId?: string;
 };
@@ -27,6 +28,7 @@ type ApiItem = {
   description: string;
   location: string;
   time: string;
+  contactNumber?: string;
   imageUrl?: string | null;
   ownerId?: string;
 };
@@ -210,6 +212,7 @@ function MatchingPageContent() {
           location: entry.location,
           date: toDateOnly(entry.time),
           image: resolveImageUrl(entry.imageUrl) || FALLBACK_IMAGE,
+          contactNumber: entry.contactNumber,
           matchScore: 0,
           ownerId: entry.ownerId,
         }));
