@@ -60,11 +60,12 @@
   color: #111827;
 }
 
-/* Ensure native date/time pickers use light chrome on the white inputs */
-input[type="date"],
-input[type="datetime-local"],
-input[type="time"] {
-  color-scheme: light;
+/* Make native date/time picker icons visible on dark inputs */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
 }
 
 /* ── Shared Keyframe Animations ── */
