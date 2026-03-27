@@ -16,6 +16,7 @@ type MatchItem = {
   date: string;
   image: string;
   matchScore: number;
+  ownerId?: string;
 };
 
 type ApiItem = {
@@ -27,6 +28,7 @@ type ApiItem = {
   location: string;
   time: string;
   imageUrl?: string | null;
+  ownerId?: string;
 };
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim/600/400';
@@ -209,6 +211,7 @@ function MatchingPageContent() {
           date: toDateOnly(entry.time),
           image: resolveImageUrl(entry.imageUrl) || FALLBACK_IMAGE,
           matchScore: 0,
+          ownerId: entry.ownerId,
         }));
 
         setItems(mapped);

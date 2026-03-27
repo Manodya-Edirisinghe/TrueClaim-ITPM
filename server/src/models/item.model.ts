@@ -10,6 +10,9 @@ export interface IItem extends Document {
   contactNumber: string;
   imageUrl?: string;
   imagePublicId?: string;
+  // Who posted this item — used for messaging.
+  // FUTURE UPGRADE: Will be set by JWT/session middleware instead of header.
+  ownerId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,6 +62,11 @@ const itemSchema = new Schema<IItem>(
     imagePublicId: {
       type: String,
       default: null,
+    },
+    ownerId: {
+      type: String,
+      default: null,
+      index: true,
     },
   },
   { timestamps: true }

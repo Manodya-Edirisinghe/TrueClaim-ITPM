@@ -13,6 +13,7 @@ export async function createItem(
 
     const imageBuffer = req.file?.buffer;
     const originalName = req.file?.originalname;
+    const ownerId = req.headers['x-user-id'] as string | undefined;
 
     const item = await itemService.createItem({
       itemType,
@@ -24,6 +25,7 @@ export async function createItem(
       contactNumber,
       imageBuffer,
       originalName,
+      ownerId,
     });
 
     res.status(201).json({ message: 'Item submitted successfully', item });
