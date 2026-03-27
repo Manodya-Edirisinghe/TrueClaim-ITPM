@@ -3,3 +3,4 @@ dist/
 *.js.map
 .next/
 config.bat
+server/uploads/

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Menu, X, Sparkles, FileText, Cpu, CheckCircle2, Search, Bell, ShieldCheck, MapPin } from 'lucide-react';
+import { Sparkles, FileText, Cpu, CheckCircle2, Search, Bell, ShieldCheck, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AnimatedGroup } from '@/components/ui/animated-group';
 import { cn } from '@/lib/utils';
@@ -28,15 +28,6 @@ const transitionVariants = {
   },
 };
 
-// ── Nav ──────────────────────────────────────────────────────────────────────
-
-const menuItems = [
-  { name: 'Features',     href: '#features' },
-  { name: 'Match Items',  href: '/match-items' },
-  { name: 'Universities', href: '#universities' },
-  { name: 'Contact',      href: '#contact' },
-];
-
 const TrueClaimLogo = ({ className }: { className?: string }) => (
   <div className={cn('flex items-center gap-2', className)}>
     <div
@@ -48,102 +39,11 @@ const TrueClaimLogo = ({ className }: { className?: string }) => (
   </div>
 );
 
-const HeroHeader = () => {
-  const [menuState, setMenuState] = React.useState(false);
-  const [isScrolled, setIsScrolled] = React.useState(false);
-  React.useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  return (
-    <header>
-      <nav
-        data-state={menuState ? 'active' : undefined}
-        className="fixed z-20 w-full px-2 group">
-        <div
-          className={cn(
-            'mx-auto mt-2 max-w-6xl px-6 transition-all duration-300 lg:px-12',
-            isScrolled && 'max-w-4xl rounded-2xl border backdrop-blur-lg lg:px-5',
-          )}
-          style={isScrolled ? { backgroundColor: 'rgba(0,0,0,0.75)', borderColor: 'rgba(255,255,255,0.08)' } : {}}>
-          <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
-
-            {/* Logo */}
-            <div className="flex w-full justify-between lg:w-auto">
-              <Link href="/landing" aria-label="home">
-                <TrueClaimLogo />
-              </Link>
-              <button
-                onClick={() => setMenuState(!menuState)}
-                aria-label={menuState ? 'Close Menu' : 'Open Menu'}
-                className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5 lg:hidden text-white">
-                <Menu className="group-data-[state=active]:scale-0 group-data-[state=active]:opacity-0 m-auto size-6 duration-200" />
-                <X    className="group-data-[state=active]:rotate-0 group-data-[state=active]:scale-100 group-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200" />
-              </button>
-            </div>
-
-            {/* Desktop links */}
-            <div className="absolute inset-0 m-auto hidden size-fit lg:block">
-              <ul className="flex gap-8 text-sm">
-                {menuItems.map((item, i) => (
-                  <li key={i}>
-                    <Link href={item.href} className="text-white/60 hover:text-white block duration-150 transition-colors">
-                      {item.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* CTA */}
-            <div
-              className={cn(
-                'group-data-[state=active]:block lg:group-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-4 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none',
-              )}
-              style={{ backgroundColor: bg, borderColor: subtle }}>
-              {/* Mobile links */}
-              <div className="lg:hidden">
-                <ul className="space-y-6 text-base">
-                  {menuItems.map((item, i) => (
-                    <li key={i}>
-                      <a href={item.href} className="text-white/60 hover:text-white block duration-150">{item.name}</a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-                <Button asChild variant="outline" size="sm"
-                  className={cn('border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white', isScrolled && 'lg:hidden')}>
-                  <Link href="/login"><span>Sign In</span></Link>
-                </Button>
-                <Button asChild size="sm"
-                  className={cn('text-white font-semibold', isScrolled && 'lg:hidden')}
-                  style={{ background: blue }}>
-                  <Link href="/login"><span>Get Started</span></Link>
-                </Button>
-                <Button asChild size="sm"
-                  className={cn('text-white font-semibold', isScrolled ? 'lg:inline-flex' : 'hidden')}
-                  style={{ background: blue }}>
-                  <Link href="/login"><span>Get Started →</span></Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-    </header>
-  );
-};
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export function HeroSection() {
   return (
-    <>
-      <HeroHeader />
-      <main className="relative overflow-hidden w-full" style={{ backgroundColor: bg, color: '#ffffff', fontFamily: "'Inter', sans-serif" }}>
+    <main className="relative overflow-hidden w-full" style={{ backgroundColor: bg, color: '#ffffff', fontFamily: "'Inter', sans-serif" }}>
 
         {/* Subtle blue side glows */}
         <div aria-hidden className="z-[2] absolute inset-0 pointer-events-none isolate opacity-60 hidden lg:block overflow-hidden">
@@ -458,6 +358,5 @@ export function HeroSection() {
           </div>
         </footer>
       </main>
-    </>
   );
 }

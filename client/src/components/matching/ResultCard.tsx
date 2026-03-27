@@ -1,3 +1,9 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { MessageCircle } from 'lucide-react';
+import { getCurrentUserId } from '@/lib/auth';
+
 type MatchResult = {
   id: string;
   title: string;
@@ -6,6 +12,8 @@ type MatchResult = {
   date: string;
   image: string;
   matchScore: number;
+  // Owner ID for messaging — falls back to the item ID as a pseudo-owner
+  ownerId?: string;
 };
 
 type ResultCardProps = {
@@ -14,6 +22,22 @@ type ResultCardProps = {
 };
 
 export default function ResultCard({ item, isHighlighted = false }: ResultCardProps) {
+  const router = useRouter();
+
+  const handleMessageOwner = () => {
+    // Use the ownerId if available, otherwise use the item's id as a
+    // deterministic pseudo-owner so conversations are still scoped per item.
+    const receiverId = item.ownerId ?? `owner_${item.id}`;
+    const currentUserId = getCurrentUserId();
+
+    // Don't let a user message themselves
+    if (receiverId === currentUserId) return;
+
+    router.push(
+      `/messages?itemId=${item.id}&receiverId=${encodeURIComponent(receiverId)}`
+    );
+  };
+
   return (
     <article
       className={`group overflow-hidden rounded-2xl border bg-white/5 transition duration-300 hover:-translate-y-1 hover:border-blue-400/60 hover:bg-white/10 ${
@@ -42,9 +66,19 @@ export default function ResultCard({ item, isHighlighted = false }: ResultCardPr
           </p>
         </div>
 
-        <button className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
-          View Details
-        </button>
+        <div className="flex gap-2">
+          <button className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
+            View Details
+          </button>
+          <button
+            onClick={handleMessageOwner}
+            className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20"
+            title="Message Owner"
+          >
+            <MessageCircle className="size-4" />
+            Message
+          </button>
+        </div>
       </div>
     </article>
   );
