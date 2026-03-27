@@ -4,10 +4,11 @@
   "description": "TrueClaim Lost & Found - Express/TypeScript Backend",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "npx kill-port 5000 && nodemon --exec ts-node src/server.ts",
+    "dev": "npx kill-port 8000 && nodemon --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "seed:claims-demo": "ts-node src/seedClaimsDemo.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

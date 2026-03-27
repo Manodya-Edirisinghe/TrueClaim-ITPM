@@ -4,7 +4,7 @@ import axios from 'axios';
 // Preconfigured Axios client pointing at the TrueClaim Express API.
 // Usage: import api from '@/lib/axios'; then api.get('/items')
 
-const configuredBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api';
+const configuredBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api';
 
 const api = axios.create({
   baseURL: configuredBaseUrl,
@@ -15,7 +15,7 @@ const api = axios.create({
 });
 
 const fallbackBaseUrls = Array.from(
-  new Set([configuredBaseUrl, 'http://localhost:5000/api', 'http://localhost:5001/api'])
+  new Set([configuredBaseUrl, 'http://localhost:8000/api', 'http://localhost:5000/api', 'http://localhost:5001/api'])
 );
 
 // Request interceptor – attach auth token if present

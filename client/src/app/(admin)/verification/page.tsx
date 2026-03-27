@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import api from "@/lib/axios";
-import { Bell, LayoutDashboard, ShieldCheck, Trash2 } from "lucide-react";
+import { Bell, LayoutDashboard, ShieldCheck, Trash2, Users } from "lucide-react";
 
 type ClaimItem = {
   _id: string;
@@ -221,7 +221,7 @@ function LostFoundItemCard({
 
 export default function VerificationDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "verification" | "notifications">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "verification" | "management" | "notifications">("overview");
   const [claims, setClaims] = useState<VerificationClaim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(true);
   const [lostItems, setLostItems] = useState<LostFoundItem[]>([]);
@@ -242,21 +242,8 @@ export default function VerificationDashboardPage() {
   const loadClaims = async () => {
     try {
       setLoadingClaims(true);
-      const response = await api.get("/claims", {
-        params: {
-          status: "pending_verification",
-        },
-      });
-      const pending = (response.data?.claims ?? []) as VerificationClaim[];
-
-      const verifiedResponse = await api.get("/claims", {
-        params: {
-          status: "claim_verified",
-        },
-      });
-
-      const verified = (verifiedResponse.data?.claims ?? []) as VerificationClaim[];
-      setClaims([...pending, ...verified]);
+      const response = await api.get("/claims");
+      setClaims((response.data?.claims ?? []) as VerificationClaim[]);
     } catch {
       toast.error("Failed to load verification claims.");
     } finally {
@@ -381,6 +368,16 @@ export default function VerificationDashboardPage() {
 
   const claimVerifiedClaims = useMemo(
     () => claims.filter((claim) => claim.status === "claim_verified"),
+    [claims]
+  );
+
+  const approvedClaims = useMemo(
+    () => claims.filter((claim) => claim.status === "approved"),
+    [claims]
+  );
+
+  const rejectedClaims = useMemo(
+    () => claims.filter((claim) => claim.status === "rejected"),
     [claims]
   );
 
@@ -653,6 +650,20 @@ export default function VerificationDashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab("management")}
+              className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+                activeTab === "management"
+                  ? "border-violet-100 bg-white text-[#0A66C2] shadow-xl"
+                  : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
+              }`}
+            >
+              <span className="grid h-12 w-12 place-content-center rounded-xl bg-violet-50 text-violet-600 shadow-inner">
+                <Users className="h-6 w-6" />
+              </span>
+              <span>Claims Hub</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab("notifications")}
               className={`flex w-full items-center justify-between gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
                 activeTab === "notifications"
@@ -702,7 +713,7 @@ export default function VerificationDashboardPage() {
             </div>
           </div>
 
-          <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-gray-200 bg-gray-100 p-2 lg:hidden">
+          <div className="mb-4 grid grid-cols-4 gap-2 rounded-xl border border-gray-200 bg-gray-100 p-2 lg:hidden">
             <button
               type="button"
               onClick={() => setActiveTab("overview")}
@@ -720,6 +731,15 @@ export default function VerificationDashboardPage() {
               }`}
             >
               Verification
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("management")}
+              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                activeTab === "management" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
+              }`}
+            >
+              Claims Hub
             </button>
             <button
               type="button"
@@ -990,6 +1010,53 @@ export default function VerificationDashboardPage() {
                     </div>
                   )}
                 </div>
+              </section>
+            )}
+
+            {activeTab === "management" && (
+              <section className="space-y-6">
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+                  <h2 className="text-xl font-semibold text-violet-900">Claims Hub</h2>
+                  <p className="mt-1 text-sm text-violet-800">
+                    Manage approved owners and rejected claims in one place.
+                  </p>
+                </div>
+
+                <section className="rounded-xl border border-green-200 bg-green-50 p-4">
+                  <h3 className="mb-3 text-lg font-semibold text-green-900">Approved Claims</h3>
+                  {approvedClaims.length === 0 ? (
+                    <p className="text-sm text-green-800">No approved claims yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {approvedClaims.map((claim) => (
+                        <article key={claim._id} className="rounded-md border border-green-200 bg-white p-3">
+                          <p className="text-sm font-semibold text-black">{claim.itemId?.itemTitle ?? "Item"}</p>
+                          <p className="text-xs text-gray-700">Owner: {claim.claimantName} ({claim.claimantEmail})</p>
+                          <p className="text-xs text-gray-700">Verification ID: {claim.verificationId}</p>
+                          <p className="text-xs text-gray-700">Meeting: {claim.meetingLocation ?? "-"} at {claim.meetingDateTime ? new Date(claim.meetingDateTime).toLocaleString() : "-"}</p>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <h3 className="mb-3 text-lg font-semibold text-red-900">Rejected Claims</h3>
+                  {rejectedClaims.length === 0 ? (
+                    <p className="text-sm text-red-800">No rejected claims yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {rejectedClaims.map((claim) => (
+                        <article key={claim._id} className="rounded-md border border-red-200 bg-white p-3">
+                          <p className="text-sm font-semibold text-black">{claim.itemId?.itemTitle ?? "Item"}</p>
+                          <p className="text-xs text-gray-700">Claimer: {claim.claimantName} ({claim.claimantEmail})</p>
+                          <p className="text-xs text-gray-700">Verification ID: {claim.verificationId}</p>
+                          <p className="text-xs text-gray-700">Status: Rejected</p>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
               </section>
             )}
 
