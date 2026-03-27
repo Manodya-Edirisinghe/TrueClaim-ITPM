@@ -16,6 +16,7 @@ export interface CreateItemDTO {
   contactNumber: string;
   imageBuffer?: Buffer;
   originalName?: string;
+  ownerId?: string;
 }
 
 function validatePayload(dto: CreateItemDTO): void {
@@ -100,6 +101,7 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
     contactNumber: dto.contactNumber,
     imageUrl,
     imagePublicId,
+    ownerId: dto.ownerId,
   });
 
   return item;
