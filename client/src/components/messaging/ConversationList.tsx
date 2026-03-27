@@ -1,5 +1,6 @@
 'use client';
 
+import { Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export type ConversationSummary = {
@@ -17,6 +18,7 @@ type Props = {
   activeId: string | null;
   currentUserId: string;
   onSelect: (conv: ConversationSummary) => void;
+  onDelete: (conversationId: string) => void;
 };
 
 export default function ConversationList({
@@ -24,6 +26,7 @@ export default function ConversationList({
   activeId,
   currentUserId,
   onSelect,
+  onDelete,
 }: Props) {
   if (conversations.length === 0) {
     return (
@@ -41,7 +44,7 @@ export default function ConversationList({
         const isActive = conv._id === activeId;
 
         return (
-          <li key={conv._id}>
+          <li key={conv._id} className="group relative">
             <button
               onClick={() => onSelect(conv)}
               className={`w-full px-4 py-3 text-left transition hover:bg-white/5 ${
@@ -49,7 +52,7 @@ export default function ConversationList({
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-white truncate">
+                <span className="text-sm font-medium text-white truncate pr-6">
                   {conv.itemTitle ?? `Item conversation`}
                 </span>
                 {lastMsg && (
@@ -67,6 +70,20 @@ export default function ConversationList({
                   {lastMsg.text}
                 </p>
               )}
+            </button>
+
+            {/* Delete button — visible on hover */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm('Delete this conversation? This cannot be undone.')) {
+                  onDelete(conv._id);
+                }
+              }}
+              className="absolute right-2 top-3 rounded-lg p-1.5 text-white/0 transition group-hover:text-red-400 hover:!bg-red-500/20 hover:!text-red-300"
+              title="Delete conversation"
+            >
+              <Trash2 className="size-3.5" />
             </button>
           </li>
         );

@@ -153,6 +153,26 @@ export default function MessagesPage() {
     }
   };
 
+  // ── Delete a conversation ────────────────────────────────────────────────
+  const handleDelete = async (conversationId: string) => {
+    try {
+      await api.delete(`/conversations/${conversationId}`, {
+        headers: { 'x-user-id': currentUserId },
+      });
+
+      // Clear the active chat if we just deleted it
+      if (activeConv?._id === conversationId) {
+        setActiveConv(null);
+        setMessages([]);
+      }
+
+      // Remove from the sidebar list
+      setConversations((prev) => prev.filter((c) => c._id !== conversationId));
+    } catch (err) {
+      console.error('Failed to delete conversation', err);
+    }
+  };
+
   // ── Select a conversation from the sidebar ───────────────────────────────
   const handleSelect = async (conv: ConversationSummary) => {
     setActiveConv(conv);
@@ -209,6 +229,7 @@ export default function MessagesPage() {
                 activeId={activeConv?._id ?? null}
                 currentUserId={currentUserId}
                 onSelect={handleSelect}
+                onDelete={handleDelete}
               />
             )}
           </div>

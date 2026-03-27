@@ -68,3 +68,17 @@ export async function getConversationById(
     participants: userId,
   });
 }
+
+/**
+ * Delete a conversation. Only a participant can delete it.
+ */
+export async function deleteConversation(
+  conversationId: string,
+  userId: string
+): Promise<boolean> {
+  const result = await Conversation.findOneAndDelete({
+    _id: conversationId,
+    participants: userId,
+  });
+  return result !== null;
+}

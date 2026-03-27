@@ -131,3 +131,35 @@ export const getConversationById = async (
     next(err);
   }
 };
+
+/**
+ * DELETE /api/conversations/:conversationId
+ * Deletes a conversation (only if the requester is a participant).
+ */
+export const deleteConversation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: 'Missing user identity (x-user-id header)' });
+      return;
+    }
+
+    const deleted = await messageService.deleteConversation(
+      req.params.conversationId,
+      userId
+    );
+
+    if (!deleted) {
+      res.status(404).json({ error: 'Conversation not found or not authorized' });
+      return;
+    }
+
+    res.json({ message: 'Conversation deleted' });
+  } catch (err) {
+    next(err);
+  }
+};

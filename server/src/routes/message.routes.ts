@@ -4,6 +4,7 @@ import {
   getMessagesByItem,
   getConversations,
   getConversationById,
+  deleteConversation,
 } from '../controllers/message.controller';
 
 // ─── Message Routes ──────────────────────────────────────────────────────────
@@ -21,3 +22,4 @@ export default router;
 export const conversationRouter = Router();
 conversationRouter.get('/', getConversations);
 conversationRouter.get('/:conversationId', getConversationById);
+conversationRouter.delete('/:conversationId', deleteConversation);
