@@ -9,7 +9,7 @@ import { errorHandler } from './middlewares/error.middleware';
 
 // Routes
 import itemRoutes from './routes/item.routes';
-import messageRoutes from './routes/message.routes';
+import messageRoutes, { conversationRouter } from './routes/message.routes';
 import claimRoutes from './routes/claim.routes';
 import adminRoutes from './routes/admin.routes';
 import feedbackRoutes from './routes/feedbackRoutes';
@@ -31,6 +31,18 @@ const io = new SocketIOServer(httpServer, {
 io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
 
+  // Join a room scoped to a conversation (itemId + sorted participants)
+  socket.on('join_conversation', (conversationId: string) => {
+    socket.join(conversationId);
+    console.log(`[Socket] ${socket.id} joined room ${conversationId}`);
+  });
+
+  // Real-time message relay: client emits this after the REST API persists it
+  socket.on('send_message', (data: { conversationId: string; message: unknown }) => {
+    // Broadcast to everyone else in the conversation room
+    socket.to(data.conversationId).emit('receive_message', data.message);
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket] Client disconnected: ${socket.id}`);
   });
@@ -50,6 +62,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/items', itemRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/conversations', conversationRouter);
 app.use('/api/claims', claimRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
@@ -67,11 +80,19 @@ const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/trueclaim'
 
 async function connectDB(): Promise<void> {
   try {
-    await mongoose.connect(MONGO_URI);
-    console.log('[MongoDB] Connected successfully');
+    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+    console.log('[MongoDB] Connected successfully to Atlas');
   } catch (error) {
-    console.error('[MongoDB] Connection failed:', error);
-    process.exit(1);
+    console.warn('[MongoDB] Atlas unavailable, starting in-memory database...');
+    try {
+      const { MongoMemoryServer } = await import('mongodb-memory-server');
+      const mongod = await MongoMemoryServer.create();
+      await mongoose.connect(mongod.getUri());
+      console.log('[MongoDB] Connected to in-memory database');
+    } catch (memError) {
+      console.error('[MongoDB] All connections failed:', memError);
+      process.exit(1);
+    }
   }
 }
 
