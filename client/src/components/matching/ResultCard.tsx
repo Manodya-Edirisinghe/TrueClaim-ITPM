@@ -8,6 +8,7 @@ import { getCurrentUserId } from '@/lib/auth';
 
 type MatchResult = {
   id: string;
+  itemType?: 'lost' | 'found';
   title: string;
   category: string;
   location: string;
@@ -51,6 +52,17 @@ export default function ResultCard({ item, isHighlighted = false }: ResultCardPr
       >
         <div className="relative">
           <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
+          {item.itemType && (
+            <span
+              className={`absolute left-3 top-3 rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+                item.itemType === 'lost'
+                  ? 'bg-red-500/80 text-white'
+                  : 'bg-emerald-500/80 text-white'
+              }`}
+            >
+              {item.itemType}
+            </span>
+          )}
         </div>
 
         <div className="space-y-3 p-4">
