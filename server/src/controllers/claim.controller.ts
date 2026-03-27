@@ -244,9 +244,10 @@ export const verifyClaim = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { meetingLocation, meetingDateTime } = req.body as {
+    const { meetingLocation, meetingDateTime, broadcastToAllClaimers } = req.body as {
       meetingLocation?: string;
       meetingDateTime?: string;
+      broadcastToAllClaimers?: boolean;
     };
 
     if (!mongoose.isValidObjectId(id)) {
@@ -275,16 +276,31 @@ export const verifyClaim = async (
       throw createError('Invalid meetingDateTime.', 400);
     }
 
-    claim.status = 'claim_verified';
-    claim.meetingLocation = meetingLocation;
-    claim.meetingDateTime = parsedMeetingDate;
-    claim.alerts.push({
-      type: 'meeting_scheduled',
-      message: `Meeting scheduled at ${meetingLocation} on ${parsedMeetingDate.toLocaleString()}.`,
-      createdAt: new Date(),
-    });
+    const shouldBroadcast = broadcastToAllClaimers !== false;
+    const targetClaims = shouldBroadcast
+      ? await Claim.find({
+          itemId: claim.itemId,
+          status: { $in: ['pending_verification', 'claim_verified'] },
+        })
+      : [claim];
 
-    await claim.save();
+    if (targetClaims.length === 0) {
+      throw createError('No active claimers found for this item.', 404);
+    }
+
+    const alertCreatedAt = new Date();
+    for (const targetClaim of targetClaims) {
+      targetClaim.status = 'claim_verified';
+      targetClaim.meetingLocation = meetingLocation;
+      targetClaim.meetingDateTime = parsedMeetingDate;
+      targetClaim.alerts.push({
+        type: 'meeting_scheduled',
+        message: `Meeting scheduled at ${meetingLocation} on ${parsedMeetingDate.toLocaleString()}. Verification ID: ${targetClaim.verificationId}.`,
+        createdAt: alertCreatedAt,
+      });
+    }
+
+    await Promise.all(targetClaims.map((targetClaim) => targetClaim.save()));
 
     await Item.findByIdAndUpdate(claim.itemId, {
       claimStatus: 'claim_verified',
@@ -296,8 +312,11 @@ export const verifyClaim = async (
     });
 
     res.json({
-      message: 'Claim moved to claim verified category and meeting details sent to claimant.',
-      claim,
+      message: shouldBroadcast
+        ? 'Claim moved to claim verified category and meeting details sent to all active claimers.'
+        : 'Claim moved to claim verified category and meeting details sent to claimant.',
+      updatedClaimsCount: targetClaims.length,
+      claims: targetClaims,
     });
   } catch (err) {
     next(err);

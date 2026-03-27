@@ -5,6 +5,7 @@ import {
   uploadImageToCloudinary,
   deleteImageFromCloudinary,
 } from '../utils/cloudinary.util';
+import { createNotificationFromItem } from './notification.service';
 
 const VALID_TYPES = ['lost', 'found'] as const;
 type ItemType = (typeof VALID_TYPES)[number];
@@ -81,6 +82,12 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
     imageUrl,
     imagePublicId,
   });
+
+  try {
+    await createNotificationFromItem(item);
+  } catch (error) {
+    console.error('[Notification] Failed to create notification from item:', error);
+  }
 
   return item;
 }

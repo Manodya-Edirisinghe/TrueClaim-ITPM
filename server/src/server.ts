@@ -13,6 +13,7 @@ import claimRoutes from './routes/claim.routes';
 import adminRoutes from './routes/admin.routes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import authRoutes from './routes/authRoutes';
+import notificationRoutes from './routes/notification.routes';
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ app.use('/api/claims', claimRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/notifications', notificationRoutes);
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

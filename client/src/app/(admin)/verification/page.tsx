@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import api from "@/lib/axios";
@@ -63,7 +63,16 @@ type ItemNotification = {
   detectedAt: string;
 };
 
-const LAST_SEEN_ITEM_CREATED_AT_KEY = "verification_dashboard_last_seen_item_created_at_ms";
+type NotificationApiRecord = {
+  _id: string;
+  itemId?: string | null;
+  itemType: "lost" | "found";
+  itemTitle: string;
+  location: string;
+  itemCreatedAt?: string;
+  detectedAt: string;
+  isRead: boolean;
+};
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "Countdown ended";
@@ -106,11 +115,17 @@ function MeetingForm({
 
     try {
       setSaving(true);
-      await api.post(`/claims/${claim._id}/verify`, {
+      const response = await api.post(`/claims/${claim._id}/verify`, {
         meetingLocation,
         meetingDateTime,
+        broadcastToAllClaimers: true,
       });
-      toast.success("Claim moved to claim verified category.");
+      const updatedClaimsCount = Number(response.data?.updatedClaimsCount ?? 1);
+      toast.success(
+        updatedClaimsCount > 1
+          ? `Meeting details sent to ${updatedClaimsCount} claimers.`
+          : "Claim moved to claim verified category."
+      );
       setMeetingLocation("");
       setMeetingDateTime("");
       await onScheduled();
@@ -141,7 +156,7 @@ function MeetingForm({
         disabled={saving}
         className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-black transition hover:bg-gray-100 disabled:opacity-70 sm:col-span-2"
       >
-        {saving ? "Saving..." : "Move to Claim Verified + Send Meeting Details"}
+        {saving ? "Saving..." : "Move to Claim Verified + Send to All Claimers"}
       </button>
     </form>
   );
@@ -221,12 +236,6 @@ export default function VerificationDashboardPage() {
   const [resumingQueueItemId, setResumingQueueItemId] = useState<string | null>(null);
   const [sendingReclaimItemId, setSendingReclaimItemId] = useState<string | null>(null);
   const [, setTick] = useState(0);
-  const knownItemIdsRef = useRef<Set<string>>(new Set());
-  const hasInitializedItemSnapshotRef = useRef(false);
-  const previousTotalsRef = useRef<{ lost: number; found: number }>({ lost: 0, found: 0 });
-  const lastSeenItemCreatedAtMsRef = useRef(0);
-  const hasInitializedLastSeenRef = useRef(false);
-  const hasStoredLastSeenRef = useRef(false);
 
   const loadClaims = async () => {
     try {
@@ -273,127 +282,8 @@ export default function VerificationDashboardPage() {
         }),
       ]);
 
-      const nextLostItems = (lostResponse.data?.items ?? []) as LostFoundItem[];
-      const nextFoundItems = (foundResponse.data?.items ?? []) as LostFoundItem[];
-      const nextLostTotal = Number(lostResponse.data?.meta?.total ?? nextLostItems.length);
-      const nextFoundTotal = Number(foundResponse.data?.meta?.total ?? nextFoundItems.length);
-      const fetchedItems = [...nextLostItems, ...nextFoundItems];
-      const createdAtDetectedItems = hasInitializedLastSeenRef.current
-        ? fetchedItems.filter((item) => {
-            if (!item.createdAt) return false;
-            const createdAtMs = new Date(item.createdAt).getTime();
-            return !Number.isNaN(createdAtMs) && createdAtMs > lastSeenItemCreatedAtMsRef.current;
-          })
-        : [];
-
-      if (!hasInitializedItemSnapshotRef.current) {
-        if (hasStoredLastSeenRef.current && createdAtDetectedItems.length > 0) {
-          const detectedAt = new Date().toISOString();
-
-          setItemNotifications((previous) => {
-            const next = createdAtDetectedItems.map((item) => ({
-              id: `${item._id}-${detectedAt}`,
-              itemId: item._id,
-              itemType: item.itemType,
-              itemTitle: item.itemTitle,
-              location: item.location,
-              createdAt: item.createdAt,
-              detectedAt,
-            }));
-
-            return [...next, ...previous].slice(0, 100);
-          });
-
-          setUnreadNotificationCount((count) => count + createdAtDetectedItems.length);
-        }
-
-        knownItemIdsRef.current = new Set(fetchedItems.map((item) => item._id));
-        previousTotalsRef.current = { lost: nextLostTotal, found: nextFoundTotal };
-        hasInitializedItemSnapshotRef.current = true;
-      } else {
-        const newlyAddedById = fetchedItems.filter((item) => !knownItemIdsRef.current.has(item._id));
-        const combinedNewItemsMap = new Map<string, LostFoundItem>();
-
-        for (const item of [...newlyAddedById, ...createdAtDetectedItems]) {
-          combinedNewItemsMap.set(item._id, item);
-        }
-
-        const newlyAddedItems = Array.from(combinedNewItemsMap.values());
-        const newLostById = newlyAddedItems.filter((item) => item.itemType === "lost");
-        const newFoundById = newlyAddedItems.filter((item) => item.itemType === "found");
-        const lostDelta = Math.max(nextLostTotal - previousTotalsRef.current.lost, 0);
-        const foundDelta = Math.max(nextFoundTotal - previousTotalsRef.current.found, 0);
-        const extraLostCount = Math.max(lostDelta - newLostById.length, 0);
-        const extraFoundCount = Math.max(foundDelta - newFoundById.length, 0);
-
-        if (newlyAddedItems.length > 0 || extraLostCount > 0 || extraFoundCount > 0) {
-          const detectedAt = new Date().toISOString();
-
-          setItemNotifications((previous) => {
-            const next = newlyAddedItems.map((item) => ({
-              id: `${item._id}-${detectedAt}`,
-              itemId: item._id,
-              itemType: item.itemType,
-              itemTitle: item.itemTitle,
-              location: item.location,
-              createdAt: item.createdAt,
-              detectedAt,
-            }));
-
-            const summaryNotifications: ItemNotification[] = [];
-
-            if (extraLostCount > 0) {
-              summaryNotifications.push({
-                id: `lost-summary-${detectedAt}`,
-                itemType: "lost",
-                itemTitle: `${extraLostCount} new lost item(s) added`,
-                location: "Database",
-                detectedAt,
-              });
-            }
-
-            if (extraFoundCount > 0) {
-              summaryNotifications.push({
-                id: `found-summary-${detectedAt}`,
-                itemType: "found",
-                itemTitle: `${extraFoundCount} new found item(s) added`,
-                location: "Database",
-                detectedAt,
-              });
-            }
-
-            return [...summaryNotifications, ...next, ...previous].slice(0, 100);
-          });
-
-          setUnreadNotificationCount((count) => count + newlyAddedItems.length + extraLostCount + extraFoundCount);
-        }
-
-        for (const item of fetchedItems) {
-          knownItemIdsRef.current.add(item._id);
-        }
-
-        previousTotalsRef.current = { lost: nextLostTotal, found: nextFoundTotal };
-      }
-
-      if (hasInitializedLastSeenRef.current) {
-        let maxCreatedAtMs = lastSeenItemCreatedAtMsRef.current;
-
-        for (const item of fetchedItems) {
-          if (!item.createdAt) continue;
-          const createdAtMs = new Date(item.createdAt).getTime();
-          if (!Number.isNaN(createdAtMs) && createdAtMs > maxCreatedAtMs) {
-            maxCreatedAtMs = createdAtMs;
-          }
-        }
-
-        if (maxCreatedAtMs > lastSeenItemCreatedAtMsRef.current) {
-          lastSeenItemCreatedAtMsRef.current = maxCreatedAtMs;
-          localStorage.setItem(LAST_SEEN_ITEM_CREATED_AT_KEY, String(maxCreatedAtMs));
-        }
-      }
-
-      setLostItems(nextLostItems);
-      setFoundItems(nextFoundItems);
+      setLostItems((lostResponse.data?.items ?? []) as LostFoundItem[]);
+      setFoundItems((foundResponse.data?.items ?? []) as LostFoundItem[]);
     } catch {
       toast.error("Failed to load lost and found items.");
     } finally {
@@ -401,28 +291,51 @@ export default function VerificationDashboardPage() {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === "notifications" && unreadNotificationCount > 0) {
-      setUnreadNotificationCount(0);
+  const loadNotifications = async (showError = true) => {
+    try {
+      const response = await api.get("/notifications", {
+        params: {
+          page: 1,
+          limit: 100,
+        },
+      });
+
+      const notifications = (response.data?.notifications ?? []) as NotificationApiRecord[];
+      const unreadCount = Number(response.data?.unreadCount ?? 0);
+
+      setItemNotifications(
+        notifications.map((notification) => ({
+          id: notification._id,
+          itemId: notification.itemId ?? undefined,
+          itemType: notification.itemType,
+          itemTitle: notification.itemTitle,
+          location: notification.location,
+          createdAt: notification.itemCreatedAt,
+          detectedAt: notification.detectedAt,
+        }))
+      );
+      setUnreadNotificationCount(unreadCount);
+    } catch {
+      if (showError) {
+        toast.error("Failed to load notifications.");
+      }
     }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "notifications" || unreadNotificationCount === 0) return;
+
+    const markRead = async () => {
+      try {
+        await api.post("/notifications/read-all");
+        setUnreadNotificationCount(0);
+      } catch {
+        toast.error("Failed to mark notifications as read.");
+      }
+    };
+
+    void markRead();
   }, [activeTab, unreadNotificationCount]);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(LAST_SEEN_ITEM_CREATED_AT_KEY);
-    const parsed = stored ? Number(stored) : Number.NaN;
-
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      hasStoredLastSeenRef.current = true;
-      lastSeenItemCreatedAtMsRef.current = parsed;
-    } else {
-      hasStoredLastSeenRef.current = false;
-      const now = Date.now();
-      lastSeenItemCreatedAtMsRef.current = now;
-      localStorage.setItem(LAST_SEEN_ITEM_CREATED_AT_KEY, String(now));
-    }
-
-    hasInitializedLastSeenRef.current = true;
-  }, []);
 
   useEffect(() => {
     void loadClaims();
@@ -430,6 +343,18 @@ export default function VerificationDashboardPage() {
 
   useEffect(() => {
     void loadLostFoundItems();
+  }, []);
+
+  useEffect(() => {
+    void loadNotifications();
+  }, []);
+
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      void loadNotifications(false);
+    }, 30000);
+
+    return () => clearInterval(pollTimer);
   }, []);
 
   useEffect(() => {
@@ -676,6 +601,7 @@ export default function VerificationDashboardPage() {
                 onClick={() => {
                   void loadClaims();
                   void loadLostFoundItems();
+                  void loadNotifications();
                 }}
                 className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100"
               >
