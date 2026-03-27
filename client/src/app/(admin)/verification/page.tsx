@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import api from "@/lib/axios";
-import { Bell, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Bell, LayoutDashboard, ShieldCheck, Trash2 } from "lucide-react";
 
 type ClaimItem = {
   _id: string;
@@ -61,6 +61,7 @@ type ItemNotification = {
   location: string;
   createdAt?: string;
   detectedAt: string;
+  status: "new" | "read";
 };
 
 type NotificationApiRecord = {
@@ -235,6 +236,7 @@ export default function VerificationDashboardPage() {
   const [pausingQueueItemId, setPausingQueueItemId] = useState<string | null>(null);
   const [resumingQueueItemId, setResumingQueueItemId] = useState<string | null>(null);
   const [sendingReclaimItemId, setSendingReclaimItemId] = useState<string | null>(null);
+  const [resolvingClaimId, setResolvingClaimId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
   const loadClaims = async () => {
@@ -312,6 +314,7 @@ export default function VerificationDashboardPage() {
           location: notification.location,
           createdAt: notification.itemCreatedAt,
           detectedAt: notification.detectedAt,
+          status: notification.isRead ? "read" : "new",
         }))
       );
       setUnreadNotificationCount(unreadCount);
@@ -328,6 +331,12 @@ export default function VerificationDashboardPage() {
     const markRead = async () => {
       try {
         await api.post("/notifications/read-all");
+        setItemNotifications((previous) =>
+          previous.map((notification) => ({
+            ...notification,
+            status: "read" as const,
+          }))
+        );
         setUnreadNotificationCount(0);
       } catch {
         toast.error("Failed to mark notifications as read.");
@@ -525,6 +534,83 @@ export default function VerificationDashboardPage() {
         .includes(query)
     );
   }, [foundItems, foundSearch]);
+
+  const newNotifications = useMemo(
+    () => itemNotifications.filter((notification) => notification.status === "new"),
+    [itemNotifications]
+  );
+
+  const readNotifications = useMemo(
+    () => itemNotifications.filter((notification) => notification.status === "read"),
+    [itemNotifications]
+  );
+
+  const handleDeleteNotification = async (notificationId: string) => {
+    const deleted = itemNotifications.find((notification) => notification.id === notificationId);
+    if (!deleted) return;
+
+    setItemNotifications((previous) =>
+      previous.filter((notification) => notification.id !== notificationId)
+    );
+
+    if (deleted.status === "new") {
+      setUnreadNotificationCount((count) => Math.max(count - 1, 0));
+    }
+
+    try {
+      await api.delete(`/notifications/${notificationId}`);
+
+      toast.success("Notification deleted.", {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void (async () => {
+              try {
+                await api.post(`/notifications/${notificationId}/restore`);
+                await loadNotifications(false);
+                toast.success("Notification restored.");
+              } catch {
+                toast.error("Failed to restore notification.");
+              }
+            })();
+          },
+        },
+      });
+    } catch {
+      setItemNotifications((previous) => [deleted, ...previous]);
+      if (deleted.status === "new") {
+        setUnreadNotificationCount((count) => count + 1);
+      }
+      toast.error("Failed to delete notification.");
+    }
+  };
+
+  const handleResolveClaim = async (
+    claimId: string,
+    decision: "approve" | "reject"
+  ) => {
+    try {
+      setResolvingClaimId(claimId);
+      const response = await api.patch(`/claims/${claimId}/resolve`, { decision });
+      const rejectedOthersCount = Number(response.data?.rejectedOthersCount ?? 0);
+
+      if (decision === "approve" && rejectedOthersCount > 0) {
+        toast.success(
+          `Claim approved. ${rejectedOthersCount} competing claimer(s) were auto-rejected and notified.`
+        );
+      } else {
+        toast.success(decision === "approve" ? "Claim approved." : "Claim rejected.");
+      }
+
+      await loadClaims();
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to update claim decision.");
+    } finally {
+      setResolvingClaimId(null);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -881,6 +967,24 @@ export default function VerificationDashboardPage() {
                           <p className="text-sm text-gray-800">
                             Meeting: {claim.meetingLocation ?? "-"} at {claim.meetingDateTime ? new Date(claim.meetingDateTime).toLocaleString() : "-"}
                           </p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={resolvingClaimId === claim._id}
+                              onClick={() => void handleResolveClaim(claim._id, "approve")}
+                              className="rounded-md border border-green-300 bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {resolvingClaimId === claim._id ? "Saving..." : "Approve Owner"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={resolvingClaimId === claim._id}
+                              onClick={() => void handleResolveClaim(claim._id, "reject")}
+                              className="rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {resolvingClaimId === claim._id ? "Saving..." : "Reject Claim"}
+                            </button>
+                          </div>
                         </article>
                       ))}
                     </div>
@@ -901,20 +1005,88 @@ export default function VerificationDashboardPage() {
                     No notifications yet. New lost/found items will appear here automatically.
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {itemNotifications.map((notification) => (
-                      <article key={notification.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                        <p className="text-sm font-semibold text-black">
-                          New {notification.itemType} item added: {notification.itemTitle}
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <section className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-800">New</h3>
+                        <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">
+                          {newNotifications.length}
+                        </span>
+                      </div>
+
+                      {newNotifications.length === 0 ? (
+                        <p className="rounded-lg border border-emerald-200 bg-white p-3 text-sm text-emerald-800">
+                          No new notifications.
                         </p>
-                        <p className="text-xs text-gray-700">Item ID: {notification.itemId}</p>
-                        <p className="text-xs text-gray-700">Location: {notification.location}</p>
-                        <p className="text-xs text-gray-700">
-                          Item Created At: {notification.createdAt ? formatItemDateTime(notification.createdAt) : "-"}
+                      ) : (
+                        <div className="space-y-3">
+                          {newNotifications.map((notification) => (
+                            <article key={notification.id} className="rounded-lg border border-emerald-300 bg-white p-4 shadow-sm">
+                              <div className="mb-2 flex items-start justify-between gap-3">
+                                <p className="text-sm font-semibold text-black">
+                                  New {notification.itemType} item added: {notification.itemTitle}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteNotification(notification.id)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-700">Item ID: {notification.itemId ?? "-"}</p>
+                              <p className="text-xs text-gray-700">Location: {notification.location}</p>
+                              <p className="text-xs text-gray-700">
+                                Item Created At: {notification.createdAt ? formatItemDateTime(notification.createdAt) : "-"}
+                              </p>
+                              <p className="text-xs text-gray-700">Detected At: {formatItemDateTime(notification.detectedAt)}</p>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Already Read</h3>
+                        <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs font-semibold text-white">
+                          {readNotifications.length}
+                        </span>
+                      </div>
+
+                      {readNotifications.length === 0 ? (
+                        <p className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
+                          No read notifications.
                         </p>
-                        <p className="text-xs text-gray-700">Detected At: {formatItemDateTime(notification.detectedAt)}</p>
-                      </article>
-                    ))}
+                      ) : (
+                        <div className="space-y-3">
+                          {readNotifications.map((notification) => (
+                            <article key={notification.id} className="rounded-lg border border-gray-200 bg-white p-4 opacity-90">
+                              <div className="mb-2 flex items-start justify-between gap-3">
+                                <p className="text-sm font-medium text-gray-800">
+                                  {notification.itemType.toUpperCase()} item: {notification.itemTitle}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteNotification(notification.id)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-600">Item ID: {notification.itemId ?? "-"}</p>
+                              <p className="text-xs text-gray-600">Location: {notification.location}</p>
+                              <p className="text-xs text-gray-600">
+                                Item Created At: {notification.createdAt ? formatItemDateTime(notification.createdAt) : "-"}
+                              </p>
+                              <p className="text-xs text-gray-600">Detected At: {formatItemDateTime(notification.detectedAt)}</p>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
                   </div>
                 )}
               </section>

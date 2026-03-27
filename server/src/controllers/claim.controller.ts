@@ -4,7 +4,7 @@ import { Claim, IClaim } from '../models/Claim';
 import { Item, IItem } from '../models/item.model';
 
 type ClaimAlert = {
-  type: 'verification_started' | 'meeting_scheduled';
+  type: 'verification_started' | 'meeting_scheduled' | 'claim_decision';
   message: string;
   createdAt: Date;
 };
@@ -351,7 +351,28 @@ export const resolveClaim = async (
     }
 
     if (decision === 'approve') {
+      const competingClaims = await Claim.find({
+        itemId: claim.itemId,
+        _id: { $ne: claim._id },
+        status: { $in: ['pending_verification', 'claim_verified'] },
+      });
+
       claim.status = 'approved';
+      claim.alerts.push({
+        type: 'claim_decision',
+        message: `Your claim has been approved. Verification ID: ${claim.verificationId}. Please attend the scheduled meeting to collect your item.`,
+        createdAt: new Date(),
+      });
+
+      for (const competingClaim of competingClaims) {
+        competingClaim.status = 'rejected';
+        competingClaim.alerts.push({
+          type: 'claim_decision',
+          message: `Your claim could not be approved because another claimant was verified as the owner for this item.`,
+          createdAt: new Date(),
+        });
+      }
+
       item.hasOwner = true;
       item.ownerClaimId = claim._id as Types.ObjectId;
       item.claimStatus = 'claimed';
@@ -360,15 +381,31 @@ export const resolveClaim = async (
       item.claimableQueueEndsAt = null;
       item.claimableQueuePaused = false;
       item.claimableQueueRemainingMs = null;
+
+      await Promise.all([claim.save(), item.save(), ...competingClaims.map((competingClaim) => competingClaim.save())]);
+
+      res.json({
+        message: 'Claim approved and item assigned. Other active claimers were notified and rejected.',
+        claim,
+        item,
+        rejectedOthersCount: competingClaims.length,
+      });
+      return;
     } else {
       claim.status = 'rejected';
+      claim.alerts.push({
+        type: 'claim_decision',
+        message: `Your claim has been rejected for this item. You may contact support if you need clarification.`,
+        createdAt: new Date(),
+      });
 
       const activeClaims = await Claim.countDocuments({
         itemId: claim.itemId,
+        _id: { $ne: claim._id },
         status: { $in: ['pending_verification', 'claim_verified', 'approved'] },
       });
 
-      if (activeClaims <= 1) {
+      if (activeClaims === 0) {
         item.claimStatus = 'open';
         item.needsOwnerReclaim = true;
         item.claimableQueueStartedAt = null;
@@ -381,7 +418,7 @@ export const resolveClaim = async (
     await Promise.all([claim.save(), item.save()]);
 
     res.json({
-      message: decision === 'approve' ? 'Claim approved and item assigned.' : 'Claim rejected.',
+      message: 'Claim rejected.',
       claim,
       item,
     });

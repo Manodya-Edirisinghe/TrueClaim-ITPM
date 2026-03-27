@@ -10,7 +10,7 @@ type ClaimAlert = {
   claimId: string;
   verificationId: string;
   status: string;
-  alertType: 'verification_started' | 'meeting_scheduled';
+  alertType: 'verification_started' | 'meeting_scheduled' | 'claim_decision';
   message: string;
   alertCreatedAt: string;
   countdownEndsAt: string;

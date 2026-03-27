@@ -7,7 +7,7 @@ export type ClaimStatus =
   | 'rejected';
 
 export interface IClaimAlert {
-  type: 'verification_started' | 'meeting_scheduled';
+  type: 'verification_started' | 'meeting_scheduled' | 'claim_decision';
   message: string;
   createdAt: Date;
 }
@@ -35,7 +35,7 @@ const claimAlertSchema = new Schema<IClaimAlert>(
   {
     type: {
       type: String,
-      enum: ['verification_started', 'meeting_scheduled'],
+      enum: ['verification_started', 'meeting_scheduled', 'claim_decision'],
       required: true,
     },
     message: {
