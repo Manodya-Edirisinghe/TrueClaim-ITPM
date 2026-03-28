@@ -80,19 +80,11 @@ const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/trueclaim'
 
 async function connectDB(): Promise<void> {
   try {
-    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
-    console.log('[MongoDB] Connected successfully to Atlas');
+    await mongoose.connect(MONGO_URI);
+    console.log('[MongoDB] Connected successfully');
   } catch (error) {
-    console.warn('[MongoDB] Atlas unavailable, starting in-memory database...');
-    try {
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      const mongod = await MongoMemoryServer.create();
-      await mongoose.connect(mongod.getUri());
-      console.log('[MongoDB] Connected to in-memory database');
-    } catch (memError) {
-      console.error('[MongoDB] All connections failed:', memError);
-      process.exit(1);
-    }
+    console.error('[MongoDB] Connection failed:', error);
+    process.exit(1);
   }
 }
 
