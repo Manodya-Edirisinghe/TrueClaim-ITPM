@@ -106,6 +106,7 @@ function MeetingForm({
   const [meetingLocation, setMeetingLocation] = useState("");
   const [meetingDateTime, setMeetingDateTime] = useState("");
   const [saving, setSaving] = useState(false);
+  const minMeetingDateTime = getCurrentMinuteDateTimeLocal();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -114,11 +115,25 @@ function MeetingForm({
       return;
     }
 
+    if (isPastDateTime(meetingDateTime)) {
+      toast.error("Meeting date/time cannot be in the past.");
+      return;
+    }
+
+    const meetingPayload = getMeetingDatePayload(meetingDateTime);
+    if (!meetingPayload) {
+      toast.error("Invalid meeting date/time.");
+      return;
+    }
+
     try {
       setSaving(true);
       const response = await api.post(`/claims/${claim._id}/verify`, {
         meetingLocation,
-        meetingDateTime,
+        meetingDateTime: meetingPayload.iso,
+        meetingDateTimeLocal: meetingPayload.local,
+        meetingTimeZone: meetingPayload.timeZone,
+        meetingUtcOffsetMinutes: meetingPayload.utcOffsetMinutes,
         broadcastToAllClaimers: true,
       });
       const updatedClaimsCount = Number(response.data?.updatedClaimsCount ?? 1);
@@ -150,6 +165,7 @@ function MeetingForm({
         type="datetime-local"
         value={meetingDateTime}
         onChange={(event) => setMeetingDateTime(event.target.value)}
+        min={minMeetingDateTime}
         className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
       />
       <button
@@ -167,6 +183,60 @@ function formatItemDateTime(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString();
+}
+
+function toDateTimeLocalValue(value?: string): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  const pad = (input: number) => String(input).padStart(2, "0");
+  const year = parsed.getFullYear();
+  const month = pad(parsed.getMonth() + 1);
+  const day = pad(parsed.getDate());
+  const hours = pad(parsed.getHours());
+  const minutes = pad(parsed.getMinutes());
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function getCurrentMinuteDateTimeLocal(): string {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return toDateTimeLocalValue(now.toISOString());
+}
+
+function isPastDateTime(value: string): boolean {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return true;
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return parsed.getTime() < now.getTime();
+}
+
+function toIsoFromLocalDateTime(value: string): string | null {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function getMeetingDatePayload(value: string): {
+  iso: string;
+  local: string;
+  timeZone: string;
+  utcOffsetMinutes: number;
+} | null {
+  const iso = toIsoFromLocalDateTime(value);
+  if (!iso) return null;
+
+  const parsed = new Date(value);
+  return {
+    iso,
+    local: value,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    utcOffsetMinutes: -parsed.getTimezoneOffset(),
+  };
 }
 
 function LostFoundItemCard({
@@ -236,8 +306,14 @@ export default function VerificationDashboardPage() {
   const [pausingQueueItemId, setPausingQueueItemId] = useState<string | null>(null);
   const [resumingQueueItemId, setResumingQueueItemId] = useState<string | null>(null);
   const [sendingReclaimItemId, setSendingReclaimItemId] = useState<string | null>(null);
+  const [manualApprovingItemId, setManualApprovingItemId] = useState<string | null>(null);
+  const [editingMeetingClaimId, setEditingMeetingClaimId] = useState<string | null>(null);
+  const [meetingFormLocation, setMeetingFormLocation] = useState("");
+  const [meetingFormDateTime, setMeetingFormDateTime] = useState("");
+  const [savingMeetingClaimId, setSavingMeetingClaimId] = useState<string | null>(null);
   const [resolvingClaimId, setResolvingClaimId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const minMeetingDateTime = getCurrentMinuteDateTimeLocal();
 
   const loadClaims = async () => {
     try {
@@ -491,6 +567,69 @@ export default function VerificationDashboardPage() {
       toast.error(err.response?.data?.error ?? "Failed to move item to reclaim list.");
     } finally {
       setSendingReclaimItemId(null);
+    }
+  };
+
+  const handleManualApproveFromQueue = async (item: LostFoundItem) => {
+    try {
+      setManualApprovingItemId(item._id);
+      const response = await api.post(`/items/${item._id}/manual-approve`);
+      toast.success(
+        response.data?.message ?? "Item manually approved and added to Claims Hub approved list."
+      );
+      await loadClaims();
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to manually approve queued item.");
+    } finally {
+      setManualApprovingItemId(null);
+    }
+  };
+
+  const openMeetingEditor = (claim: VerificationClaim) => {
+    setEditingMeetingClaimId(claim._id);
+    setMeetingFormLocation(claim.meetingLocation && claim.meetingLocation !== "Manual Approval" ? claim.meetingLocation : "");
+    setMeetingFormDateTime(toDateTimeLocalValue(claim.meetingDateTime));
+  };
+
+  const handleSaveMeetingDetails = async (claimId: string) => {
+    if (!meetingFormLocation.trim() || !meetingFormDateTime) {
+      toast.error("Meeting place and date/time are required.");
+      return;
+    }
+
+    if (isPastDateTime(meetingFormDateTime)) {
+      toast.error("Meeting date/time cannot be in the past.");
+      return;
+    }
+
+    const meetingPayload = getMeetingDatePayload(meetingFormDateTime);
+    if (!meetingPayload) {
+      toast.error("Invalid meeting date/time.");
+      return;
+    }
+
+    try {
+      setSavingMeetingClaimId(claimId);
+      await api.patch(`/claims/${claimId}/meeting`, {
+        meetingLocation: meetingFormLocation.trim(),
+        meetingDateTime: meetingPayload.iso,
+        meetingDateTimeLocal: meetingPayload.local,
+        meetingTimeZone: meetingPayload.timeZone,
+        meetingUtcOffsetMinutes: meetingPayload.utcOffsetMinutes,
+      });
+
+      toast.success("Meeting details saved.");
+      setEditingMeetingClaimId(null);
+      setMeetingFormLocation("");
+      setMeetingFormDateTime("");
+      await loadClaims();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to save meeting details.");
+    } finally {
+      setSavingMeetingClaimId(null);
     }
   };
 
@@ -912,6 +1051,14 @@ export default function VerificationDashboardPage() {
                             >
                               {sendingReclaimItemId === item._id ? "Sending..." : "Send To Reclaim"}
                             </button>
+                            <button
+                              type="button"
+                              disabled={manualApprovingItemId === item._id}
+                              onClick={() => void handleManualApproveFromQueue(item)}
+                              className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {manualApprovingItemId === item._id ? "Approving..." : "Approve To Claims Hub"}
+                            </button>
                           </div>
                         </article>
                       ))}
@@ -1030,10 +1177,80 @@ export default function VerificationDashboardPage() {
                     <div className="space-y-2">
                       {approvedClaims.map((claim) => (
                         <article key={claim._id} className="rounded-md border border-green-200 bg-white p-3">
+                          {(() => {
+                            const hasRealMeeting =
+                              Boolean(claim.meetingLocation && claim.meetingDateTime) &&
+                              claim.meetingLocation !== "Manual Approval";
+
+                            return (
+                              <>
                           <p className="text-sm font-semibold text-black">{claim.itemId?.itemTitle ?? "Item"}</p>
                           <p className="text-xs text-gray-700">Owner: {claim.claimantName} ({claim.claimantEmail})</p>
                           <p className="text-xs text-gray-700">Verification ID: {claim.verificationId}</p>
-                          <p className="text-xs text-gray-700">Meeting: {claim.meetingLocation ?? "-"} at {claim.meetingDateTime ? new Date(claim.meetingDateTime).toLocaleString() : "-"}</p>
+                          {hasRealMeeting ? (
+                            <p className="text-xs text-gray-700">
+                              Meeting: {claim.meetingLocation} at {new Date(claim.meetingDateTime as string).toLocaleString()}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-amber-700">Meeting details not added yet.</p>
+                          )}
+
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openMeetingEditor(claim)}
+                              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
+                            >
+                              {hasRealMeeting ? "Edit Meeting" : "Add Meeting"}
+                            </button>
+                          </div>
+
+                          {editingMeetingClaimId === claim._id ? (
+                            <form
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                void handleSaveMeetingDetails(claim._id);
+                              }}
+                              className="mt-3 grid gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:grid-cols-2"
+                            >
+                              <input
+                                value={meetingFormLocation}
+                                onChange={(event) => setMeetingFormLocation(event.target.value)}
+                                placeholder="Meeting location"
+                                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
+                              />
+                              <input
+                                type="datetime-local"
+                                value={meetingFormDateTime}
+                                onChange={(event) => setMeetingFormDateTime(event.target.value)}
+                                min={minMeetingDateTime}
+                                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
+                              />
+                              <div className="sm:col-span-2 flex gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={savingMeetingClaimId === claim._id}
+                                  className="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs font-semibold text-green-800 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {savingMeetingClaimId === claim._id ? "Saving..." : "Save Meeting"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingMeetingClaimId(null);
+                                    setMeetingFormLocation("");
+                                    setMeetingFormDateTime("");
+                                  }}
+                                  className="rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : null}
+                              </>
+                            );
+                          })()}
                         </article>
                       ))}
                     </div>

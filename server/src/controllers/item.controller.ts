@@ -181,3 +181,25 @@ export async function sendQueuedItemToReclaim(
     next(err);
   }
 }
+
+// POST /api/items/:id/manual-approve
+export async function manualApproveQueuedItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await itemService.manualApproveQueuedItem(req.params.id);
+
+    res.json({
+      message: result.createdNewClaim
+        ? 'Item manually approved and a claim record was created for Claims Hub.'
+        : 'Item manually approved and linked claim moved to approved in Claims Hub.',
+      item: result.item,
+      claimId: result.claimId,
+      createdNewClaim: result.createdNewClaim,
+    });
+  } catch (err) {
+    next(err);
+  }
+}

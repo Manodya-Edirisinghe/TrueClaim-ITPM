@@ -10,6 +10,12 @@ import { createNotificationFromItem } from './notification.service';
 const VALID_TYPES = ['lost', 'found'] as const;
 type ItemType = (typeof VALID_TYPES)[number];
 
+function createManualVerificationId(): string {
+  const now = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `MANUAL-${now}-${random}`;
+}
+
 export interface CreateItemDTO {
   itemType: string;
   itemTitle: string;
@@ -394,4 +400,117 @@ export async function sendQueuedItemToReclaim(id: string): Promise<IItem> {
 
   await item.save();
   return item;
+}
+
+export async function manualApproveQueuedItem(id: string): Promise<{ item: IItem; claimId: string; createdNewClaim: boolean }> {
+  if (!mongoose.isValidObjectId(id)) {
+    const err: Error & { statusCode?: number; isOperational?: boolean } =
+      new Error('Invalid item id format.');
+    err.statusCode = 400;
+    err.isOperational = true;
+    throw err;
+  }
+
+  const item = await Item.findById(id);
+  if (!item) {
+    const err: Error & { statusCode?: number; isOperational?: boolean } =
+      new Error('Item not found.');
+    err.statusCode = 404;
+    err.isOperational = true;
+    throw err;
+  }
+
+  if (item.hasOwner || item.claimStatus === 'claimed') {
+    const existingApprovedClaim = await Claim.findOne({
+      itemId: item._id,
+      status: 'approved',
+    }).sort({ updatedAt: -1 });
+
+    if (existingApprovedClaim) {
+      return {
+        item,
+        claimId: String(existingApprovedClaim._id),
+        createdNewClaim: false,
+      };
+    }
+  }
+
+  let targetClaim = await Claim.findOne({
+    itemId: item._id,
+    status: 'claim_verified',
+  }).sort({ createdAt: 1 });
+
+  if (!targetClaim) {
+    targetClaim = await Claim.findOne({
+      itemId: item._id,
+      status: 'pending_verification',
+    }).sort({ verificationEndsAt: 1 });
+  }
+
+  let createdNewClaim = false;
+
+  if (!targetClaim) {
+    const now = new Date();
+    targetClaim = await Claim.create({
+      itemId: item._id,
+      claimantName: 'Manual Queue Approval',
+      claimantEmail: `manual-approval+${String(item._id)}@trueclaim.local`,
+      claimantContactNumber: item.contactNumber,
+      ownershipPassword: 'manual-approval',
+      serialNumber: `MANUAL-${String(item._id).slice(-6).toUpperCase()}`,
+      lostPlace: item.location,
+      verificationId: createManualVerificationId(),
+      verificationStartedAt: now,
+      verificationEndsAt: now,
+      status: 'approved',
+      alerts: [
+        {
+          type: 'claim_decision',
+          message: 'Claim manually approved from admin 48-hour pending queue.',
+          createdAt: now,
+        },
+      ],
+    });
+    createdNewClaim = true;
+  } else {
+    targetClaim.status = 'approved';
+    targetClaim.alerts.push({
+      type: 'claim_decision',
+      message: 'Your claim has been manually approved by admin queue action.',
+      createdAt: new Date(),
+    });
+    await targetClaim.save();
+  }
+
+  const competingClaims = await Claim.find({
+    itemId: item._id,
+    _id: { $ne: targetClaim._id },
+    status: { $in: ['pending_verification', 'claim_verified'] },
+  });
+
+  for (const competingClaim of competingClaims) {
+    competingClaim.status = 'rejected';
+    competingClaim.alerts.push({
+      type: 'claim_decision',
+      message: 'Your claim was rejected because another claim was manually approved by admin.',
+      createdAt: new Date(),
+    });
+  }
+
+  item.hasOwner = true;
+  item.ownerClaimId = targetClaim._id;
+  item.claimStatus = 'claimed';
+  item.needsOwnerReclaim = false;
+  item.claimableQueueStartedAt = null;
+  item.claimableQueueEndsAt = null;
+  item.claimableQueuePaused = false;
+  item.claimableQueueRemainingMs = null;
+
+  await Promise.all([item.save(), ...competingClaims.map((competingClaim) => competingClaim.save())]);
+
+  return {
+    item,
+    claimId: String(targetClaim._id),
+    createdNewClaim,
+  };
 }

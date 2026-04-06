@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose, { Types } from 'mongoose';
 import { Claim, IClaim } from '../models/Claim';
 import { Item, IItem } from '../models/item.model';
+import ClaimMeeting, { MeetingSource } from '../models/ClaimMeeting';
 
 type ClaimAlert = {
   type: 'verification_started' | 'meeting_scheduled' | 'claim_decision';
@@ -11,7 +12,7 @@ type ClaimAlert = {
 
 type ClaimLean = {
   _id: Types.ObjectId;
-  itemId: IItem;
+  itemId: IItem | null;
   claimantName: string;
   claimantEmail: string;
   claimantContactNumber: string;
@@ -24,6 +25,8 @@ type ClaimLean = {
   status: IClaim['status'];
   alerts: ClaimAlert[];
 };
+
+type ClaimWithLinkedItem = Omit<ClaimLean, 'itemId'> & { itemId: IItem };
 
 function createError(message: string, statusCode: number): Error & { statusCode: number; isOperational: boolean } {
   const err = new Error(message) as Error & { statusCode: number; isOperational: boolean };
@@ -38,7 +41,49 @@ function createVerificationId(): string {
   return `VC-${now}-${random}`;
 }
 
-function normalizeClaim(claim: ClaimLean, claimerCountByItem: Map<string, number>) {
+function isPastMeetingDate(meetingDate: Date): boolean {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  return meetingDate.getTime() < now.getTime();
+}
+
+async function upsertClaimMeetingRecord(params: {
+  claimId: Types.ObjectId;
+  itemId: Types.ObjectId;
+  verificationId: string;
+  meetingLocation: string;
+  meetingDateTime: Date;
+  meetingDateTimeLocal?: string;
+  meetingTimeZone?: string;
+  meetingUtcOffsetMinutes?: number;
+  source: MeetingSource;
+}): Promise<void> {
+  await ClaimMeeting.findOneAndUpdate(
+    { claimId: params.claimId },
+    {
+      claimId: params.claimId,
+      itemId: params.itemId,
+      verificationId: params.verificationId,
+      meetingLocation: params.meetingLocation,
+      meetingDateTime: params.meetingDateTime,
+      meetingDateTimeLocal: params.meetingDateTimeLocal,
+      meetingTimeZone: params.meetingTimeZone,
+      meetingUtcOffsetMinutes: params.meetingUtcOffsetMinutes,
+      source: params.source,
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  );
+}
+
+function hasLinkedItem(claim: ClaimLean): claim is ClaimWithLinkedItem {
+  return claim.itemId !== null;
+}
+
+function normalizeClaim(claim: ClaimWithLinkedItem, claimerCountByItem: Map<string, number>) {
   const now = Date.now();
   const item = claim.itemId;
 
@@ -100,11 +145,12 @@ export const getAllClaims = async (
       .sort({ createdAt: -1 })
       .lean()) as unknown as ClaimLean[];
 
-    const itemIds = claims.map((claim) => String(claim.itemId._id));
+    const claimsWithLinkedItems = claims.filter(hasLinkedItem);
+    const itemIds = claimsWithLinkedItems.map((claim) => String(claim.itemId._id));
     const claimerCountByItem = await getClaimerCountByItem(itemIds);
 
     res.json({
-      claims: claims.map((claim) => normalizeClaim(claim, claimerCountByItem)),
+      claims: claimsWithLinkedItems.map((claim) => normalizeClaim(claim, claimerCountByItem)),
     });
   } catch (err) {
     next(err);
@@ -126,6 +172,10 @@ export const getClaimById = async (
 
     if (!claim) {
       throw createError('Claim not found.', 404);
+    }
+
+    if (!hasLinkedItem(claim)) {
+      throw createError('Linked item not found for this claim.', 404);
     }
 
     const itemId = String(claim.itemId._id);
@@ -244,9 +294,12 @@ export const verifyClaim = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { meetingLocation, meetingDateTime, broadcastToAllClaimers } = req.body as {
+    const { meetingLocation, meetingDateTime, meetingDateTimeLocal, meetingTimeZone, meetingUtcOffsetMinutes, broadcastToAllClaimers } = req.body as {
       meetingLocation?: string;
       meetingDateTime?: string;
+      meetingDateTimeLocal?: string;
+      meetingTimeZone?: string;
+      meetingUtcOffsetMinutes?: number;
       broadcastToAllClaimers?: boolean;
     };
 
@@ -276,6 +329,10 @@ export const verifyClaim = async (
       throw createError('Invalid meetingDateTime.', 400);
     }
 
+    if (isPastMeetingDate(parsedMeetingDate)) {
+      throw createError('meetingDateTime cannot be in the past.', 400);
+    }
+
     const shouldBroadcast = broadcastToAllClaimers !== false;
     const targetClaims = shouldBroadcast
       ? await Claim.find({
@@ -300,7 +357,22 @@ export const verifyClaim = async (
       });
     }
 
-    await Promise.all(targetClaims.map((targetClaim) => targetClaim.save()));
+    await Promise.all(
+      targetClaims.map(async (targetClaim) => {
+        await targetClaim.save();
+        await upsertClaimMeetingRecord({
+          claimId: targetClaim._id as Types.ObjectId,
+          itemId: targetClaim.itemId as Types.ObjectId,
+          verificationId: targetClaim.verificationId,
+          meetingLocation,
+          meetingDateTime: parsedMeetingDate,
+          meetingDateTimeLocal: meetingDateTimeLocal ?? parsedMeetingDate.toISOString().slice(0, 16),
+          meetingTimeZone: meetingTimeZone ?? 'UTC',
+          meetingUtcOffsetMinutes: meetingUtcOffsetMinutes ?? 0,
+          source: 'verification',
+        });
+      })
+    );
 
     await Item.findByIdAndUpdate(claim.itemId, {
       claimStatus: 'claim_verified',
@@ -427,6 +499,77 @@ export const resolveClaim = async (
   }
 };
 
+export const setClaimMeetingDetails = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { meetingLocation, meetingDateTime, meetingDateTimeLocal, meetingTimeZone, meetingUtcOffsetMinutes } = req.body as {
+      meetingLocation?: string;
+      meetingDateTime?: string;
+      meetingDateTimeLocal?: string;
+      meetingTimeZone?: string;
+      meetingUtcOffsetMinutes?: number;
+    };
+
+    if (!mongoose.isValidObjectId(id)) {
+      throw createError('Invalid claim id format.', 400);
+    }
+
+    if (!meetingLocation || !meetingDateTime) {
+      throw createError('meetingLocation and meetingDateTime are required.', 400);
+    }
+
+    const claim = await Claim.findById(id);
+    if (!claim) {
+      throw createError('Claim not found.', 404);
+    }
+
+    if (!['approved', 'claim_verified'].includes(claim.status)) {
+      throw createError('Meeting details can only be added to approved or claim verified claims.', 400);
+    }
+
+    const parsedMeetingDate = new Date(meetingDateTime);
+    if (Number.isNaN(parsedMeetingDate.getTime())) {
+      throw createError('Invalid meetingDateTime.', 400);
+    }
+
+    if (isPastMeetingDate(parsedMeetingDate)) {
+      throw createError('meetingDateTime cannot be in the past.', 400);
+    }
+
+    claim.meetingLocation = meetingLocation.trim();
+    claim.meetingDateTime = parsedMeetingDate;
+    claim.alerts.push({
+      type: 'meeting_scheduled',
+      message: `Meeting scheduled at ${meetingLocation.trim()} on ${parsedMeetingDate.toLocaleString()}. Verification ID: ${claim.verificationId}.`,
+      createdAt: new Date(),
+    });
+
+    await claim.save();
+    await upsertClaimMeetingRecord({
+      claimId: claim._id as Types.ObjectId,
+      itemId: claim.itemId as Types.ObjectId,
+      verificationId: claim.verificationId,
+      meetingLocation: meetingLocation.trim(),
+      meetingDateTime: parsedMeetingDate,
+      meetingDateTimeLocal: meetingDateTimeLocal ?? parsedMeetingDate.toISOString().slice(0, 16),
+      meetingTimeZone: meetingTimeZone ?? 'UTC',
+      meetingUtcOffsetMinutes: meetingUtcOffsetMinutes ?? 0,
+      source: 'manual_update',
+    });
+
+    res.json({
+      message: 'Meeting details saved successfully.',
+      claim,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getClaimAlertsByEmail = async (
   req: Request,
   res: Response,
@@ -444,7 +587,9 @@ export const getClaimAlertsByEmail = async (
       .sort({ createdAt: -1 })
       .lean()) as unknown as ClaimLean[];
 
-    const alerts = claims.flatMap((claim) =>
+    const claimsWithLinkedItems = claims.filter(hasLinkedItem);
+
+    const alerts = claimsWithLinkedItems.flatMap((claim) =>
       claim.alerts.map((alert) => ({
         claimId: claim._id,
         verificationId: claim.verificationId,
@@ -463,7 +608,7 @@ export const getClaimAlertsByEmail = async (
       (a, b) => new Date(b.alertCreatedAt).getTime() - new Date(a.alertCreatedAt).getTime()
     );
 
-    res.json({ claims, alerts });
+    res.json({ claims: claimsWithLinkedItems, alerts });
   } catch (err) {
     next(err);
   }
