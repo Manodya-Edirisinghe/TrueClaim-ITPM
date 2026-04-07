@@ -290,7 +290,7 @@ export default function MatchingPage() {
                     onChange={(event) =>
                       setDraftFilters((prev) => ({ ...prev, keyword: event.target.value }))
                     }
-                    placeholder="e.g., black wallet"
+                    placeholder="e.g., Brown wallet"
                     className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
                   />
                 </div>
