@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Sparkles } from 'lucide-react';
 import { getMatchLevel, matchItems, type MatchResult, type MatchableItem } from '@/lib/matching-utils';
 import { resolveImageUrl } from '@/lib/axios';
+import { useRouter } from 'next/navigation';
+import { getCurrentUserId } from '@/lib/auth';
+import { toast } from 'sonner';
 
 type MatchItem = MatchableItem & {
   id: string;
@@ -12,6 +15,8 @@ type MatchItem = MatchableItem & {
   category: string;
   location: string;
   image: string;
+  contactNumber?: string;
+  ownerId?: string;
 };
 
 type DisplayMatchItem = MatchResult<MatchItem>;
@@ -29,6 +34,8 @@ type ApiItem = {
   itemCategory: string;
   location: string;
   imageUrl?: string | null;
+  contactNumber?: string;
+  ownerId?: string;
 };
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim-match/1200/800';
@@ -56,7 +63,18 @@ function toBaselineResults(items: MatchItem[]): DisplayMatchItem[] {
   }));
 }
 
+function filterItemsByKeyword(items: MatchItem[], keyword: string): MatchItem[] {
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  if (!normalizedKeyword) return items;
+
+  return items.filter((item) => {
+    const searchableText = `${item.title} ${item.description} ${item.category} ${item.location}`.toLowerCase();
+    return searchableText.includes(normalizedKeyword);
+  });
+}
+
 export default function MatchingPage() {
+  const router = useRouter();
   const [items, setItems] = useState<MatchItem[]>([]);
   const [filters, setFilters] = useState<SearchFilters>({
     keyword: '',
@@ -70,8 +88,11 @@ export default function MatchingPage() {
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearchedWithImage, setHasSearchedWithImage] = useState(false);
   const [results, setResults] = useState<DisplayMatchItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<DisplayMatchItem | null>(null);
   const isAIUsed = Boolean(uploadedImage);
+  const showImageSearchLoading = isSearching && Boolean(uploadedImage);
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(items.map((item) => item.category)))],
@@ -101,6 +122,8 @@ export default function MatchingPage() {
           category: entry.itemCategory,
           location: entry.location,
           image: resolveImageUrl(entry.imageUrl) ?? FALLBACK_IMAGE,
+          contactNumber: entry.contactNumber,
+          ownerId: entry.ownerId,
         }));
 
         if (!isMounted) return;
@@ -128,22 +151,28 @@ export default function MatchingPage() {
   const onSubmitSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    setIsSearching(true);
+    const searchingWithImage = Boolean(uploadedImage);
+    setIsSearching(searchingWithImage);
     setFilters(draftFilters);
+    setHasSearchedWithImage(searchingWithImage);
 
     try {
-      // Simulate AI processing delay; replace with real model/API latency later.
-      const processingDelay = 1000 + Math.floor(Math.random() * 1001);
-      await new Promise((resolve) => setTimeout(resolve, processingDelay));
+      if (searchingWithImage) {
+        // Keep UX responsive while still indicating image analysis.
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
 
-      const hasSearchSignal = Boolean(draftFilters.keyword.trim()) || Boolean(uploadedImage);
-      const scored = hasSearchSignal
-        ? matchItems(items, draftFilters.keyword, uploadedImage)
-        : toBaselineResults(items);
-      const filtered = applySecondaryFilters(scored, draftFilters);
+      const filtered = searchingWithImage
+        ? applySecondaryFilters(matchItems(items, draftFilters.keyword, uploadedImage), draftFilters)
+        : applySecondaryFilters(
+            toBaselineResults(filterItemsByKeyword(items, draftFilters.keyword)),
+            draftFilters
+          );
       setResults(filtered);
     } finally {
-      setIsSearching(false);
+      if (searchingWithImage) {
+        setIsSearching(false);
+      }
     }
   };
 
@@ -162,6 +191,20 @@ export default function MatchingPage() {
 
     setUploadedImage(file);
     setImagePreviewUrl(URL.createObjectURL(file));
+  };
+
+  const onMessageOwner = () => {
+    if (!selectedItem) return;
+
+    const receiverId = selectedItem.ownerId ?? `owner_${selectedItem.id}`;
+    const currentUserId = getCurrentUserId();
+    if (!receiverId) return;
+    if (receiverId === currentUserId) {
+      toast.info('This item is submitted by you');
+      return;
+    }
+
+    router.push(`/messages?itemId=${selectedItem.id}&receiverId=${encodeURIComponent(receiverId)}`);
   };
 
   return (
@@ -297,16 +340,10 @@ export default function MatchingPage() {
               <div className="rounded-xl border border-red-300/30 bg-red-500/10 px-6 py-12 text-center text-sm text-red-200">
                 {itemsError}
               </div>
-            ) : isSearching ? (
+            ) : showImageSearchLoading ? (
               <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12">
                 <div className="mx-auto max-w-sm text-center">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
-                    AI Matching Engine
-                  </div>
-                  <p className="text-sm text-white/75">
-                    {uploadedImage ? 'Analyzing...' : 'Analyzing item keywords and ranking candidates...'}
-                  </p>
+                  <p className="text-sm text-white/75">Analyzing image...</p>
                   <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-white/10">
                     <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" />
                   </div>
@@ -343,18 +380,21 @@ export default function MatchingPage() {
                   return (
                     <article
                       key={item.id}
+                      onClick={() => setSelectedItem(item)}
                       className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-white/[0.06]"
                     >
                       <div className="relative">
                         <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
-                        <span className="absolute left-3 top-3 rounded-full border border-cyan-300/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
-                          AI Suggested
-                        </span>
+                        {hasSearchedWithImage ? (
+                          <span className="absolute left-3 top-3 rounded-full border border-cyan-300/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
+                            AI Suggested
+                          </span>
+                        ) : null}
                       </div>
                       <div className="space-y-3 p-4">
                         <h3 className="line-clamp-1 text-lg font-semibold text-white">{item.title}</h3>
 
-                        {item.isLowConfidenceMatch ? (
+                        {hasSearchedWithImage && item.isLowConfidenceMatch ? (
                           <div className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
                             Low confidence match
                           </div>
@@ -362,32 +402,36 @@ export default function MatchingPage() {
 
                         <p className="text-sm text-white/70">Location: {item.location}</p>
 
-                        <div className={`rounded-xl border px-3 py-2 ${confidenceClassName}`}>
-                          <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide">
-                            <span>Match Confidence</span>
-                            <span>{confidence}%</span>
+                        {hasSearchedWithImage ? (
+                          <div className={`rounded-xl border px-3 py-2 ${confidenceClassName}`}>
+                            <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide">
+                              <span>Match Confidence</span>
+                              <span>{confidence}%</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-black/20">
+                              <div
+                                className={`h-full rounded-full ${
+                                  level === 'High Match'
+                                    ? 'bg-emerald-300'
+                                    : level === 'Medium Match'
+                                      ? 'bg-amber-300'
+                                      : 'bg-rose-300'
+                                }`}
+                                style={{ width: `${confidence}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-black/20">
-                            <div
-                              className={`h-full rounded-full ${
-                                level === 'High Match'
-                                  ? 'bg-emerald-300'
-                                  : level === 'Medium Match'
-                                    ? 'bg-amber-300'
-                                    : 'bg-rose-300'
-                              }`}
-                              style={{ width: `${confidence}%` }}
-                            />
-                          </div>
-                        </div>
+                        ) : null}
 
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className={`h-2.5 w-2.5 rounded-full ${indicatorClassName}`} />
-                          <span className="font-medium text-white/75">Match Level:</span>
-                          <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${levelClassName}`}>
-                            {level}
-                          </span>
-                        </div>
+                        {hasSearchedWithImage ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className={`h-2.5 w-2.5 rounded-full ${indicatorClassName}`} />
+                            <span className="font-medium text-white/75">Match Level:</span>
+                            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${levelClassName}`}>
+                              {level}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     </article>
                   );
@@ -397,6 +441,63 @@ export default function MatchingPage() {
           </section>
         </div>
       </section>
+
+      {selectedItem ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0b0f17] shadow-2xl">
+            <div className="relative">
+              <img
+                src={selectedItem.image}
+                alt={selectedItem.title}
+                className="h-64 w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedItem(null)}
+                className="absolute right-3 top-3 rounded-md bg-black/60 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black/80"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <h3 className="text-xl font-semibold text-white">{selectedItem.title}</h3>
+              <p className="text-sm text-white/75">{selectedItem.description || 'No description available.'}</p>
+
+              <div className="grid grid-cols-1 gap-2 text-sm text-white/75 sm:grid-cols-2">
+                <p>
+                  <span className="text-white/45">Category:</span> {selectedItem.category}
+                </p>
+                <p>
+                  <span className="text-white/45">Location:</span> {selectedItem.location}
+                </p>
+                {selectedItem.contactNumber ? (
+                  <p className="sm:col-span-2">
+                    <span className="text-white/45">Contact:</span> {selectedItem.contactNumber}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedItem(null)}
+                  className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/5"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={onMessageOwner}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                >
+                  Message Owner
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
