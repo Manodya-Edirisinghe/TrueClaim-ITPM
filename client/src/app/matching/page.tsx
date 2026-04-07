@@ -4,12 +4,13 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Sparkles } from 'lucide-react';
 import { getMatchLevel, matchItems, type MatchResult, type MatchableItem } from '@/lib/matching-utils';
 import { resolveImageUrl } from '@/lib/axios';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUserId } from '@/lib/auth';
 import { toast } from 'sonner';
 
 type MatchItem = MatchableItem & {
   id: string;
+  itemType: 'lost' | 'found';
   title: string;
   description: string;
   category: string;
@@ -29,6 +30,7 @@ type SearchFilters = {
 
 type ApiItem = {
   _id: string;
+  itemType: 'lost' | 'found';
   itemTitle: string;
   description?: string;
   itemCategory: string;
@@ -39,6 +41,15 @@ type ApiItem = {
 };
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim-match/1200/800';
+
+function getCounterpartType(type: 'lost' | 'found'): 'lost' | 'found' {
+  return type === 'lost' ? 'found' : 'lost';
+}
+
+function parseItemType(value: string | null): 'lost' | 'found' | null {
+  if (value === 'lost' || value === 'found') return value;
+  return null;
+}
 
 function applySecondaryFilters(items: DisplayMatchItem[], filters: SearchFilters): DisplayMatchItem[] {
   const normalizedLocation = filters.location.trim().toLowerCase();
@@ -75,13 +86,25 @@ function filterItemsByKeyword(items: MatchItem[], keyword: string): MatchItem[] 
 
 export default function MatchingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialKeyword = searchParams.get('keyword') ?? searchParams.get('title') ?? '';
+  const initialCategory = searchParams.get('category') ?? 'All';
+  const initialLocation = searchParams.get('location') ?? '';
+  const sourceType =
+    parseItemType(searchParams.get('sourceType')) ?? parseItemType(searchParams.get('itemType'));
+  const targetItemType = sourceType ? getCounterpartType(sourceType) : null;
+
   const [items, setItems] = useState<MatchItem[]>([]);
   const [filters, setFilters] = useState<SearchFilters>({
-    keyword: '',
-    category: 'All',
-    location: '',
+    keyword: initialKeyword,
+    category: initialCategory,
+    location: initialLocation,
   });
-  const [draftFilters, setDraftFilters] = useState<SearchFilters>(filters);
+  const [draftFilters, setDraftFilters] = useState<SearchFilters>({
+    keyword: initialKeyword,
+    category: initialCategory,
+    location: initialLocation,
+  });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -117,6 +140,7 @@ export default function MatchingPage() {
 
         const mappedItems: MatchItem[] = apiItems.map((entry) => ({
           id: entry._id,
+          itemType: entry.itemType,
           title: entry.itemTitle,
           description: entry.description ?? '',
           category: entry.itemCategory,
@@ -128,8 +152,20 @@ export default function MatchingPage() {
 
         if (!isMounted) return;
 
-        setItems(mappedItems);
-        setResults(applySecondaryFilters(toBaselineResults(mappedItems), filters));
+        const typeFilteredItems = targetItemType
+          ? mappedItems.filter((item) => item.itemType === targetItemType)
+          : mappedItems;
+
+        setItems(typeFilteredItems);
+        const baselineResults = applySecondaryFilters(
+          toBaselineResults(filterItemsByKeyword(typeFilteredItems, initialKeyword)),
+          {
+            keyword: initialKeyword,
+            category: initialCategory,
+            location: initialLocation,
+          }
+        );
+        setResults(baselineResults);
       } catch (error) {
         if (!isMounted) return;
         console.error('[Matching Items Load Error]', error);
@@ -147,6 +183,26 @@ export default function MatchingPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const nextFilters: SearchFilters = {
+      keyword: initialKeyword,
+      category: initialCategory,
+      location: initialLocation,
+    };
+
+    setFilters(nextFilters);
+    setDraftFilters(nextFilters);
+
+    if (items.length > 0) {
+      setResults(
+        applySecondaryFilters(
+          toBaselineResults(filterItemsByKeyword(items, nextFilters.keyword)),
+          nextFilters
+        )
+      );
+    }
+  }, [initialKeyword, initialCategory, initialLocation, items]);
 
   const onSubmitSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
