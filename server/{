@@ -1,0 +1,45 @@
+At line:1 char:882
++ ... rom 'dotenv'; import mongoose from 'mongoose'; dotenv.config(); (asyn ...
++                                                                  ~
+An expression was expected after '('.
+At line:1 char:893
++ ... '; import mongoose from 'mongoose'; dotenv.config(); (async () = awai ...
++                                                                  ~
+An expression was expected after '('.
+At line:1 char:952
++ ...  () = await mongoose.connect(process.env.MONGO_URI as string); const  ...
++                                                                  ~
+Missing closing ')' in expression.
+At line:1 char:1213
++ ... ing_not_found'); } else { console.log('db_meetingDateTime=' + doc.mee ...
++                                                                  ~
+You must provide a value expression following the '+' operator.
+At line:1 char:1214
++ ... e.log('db_meetingDateTime=' + doc.meetingDateTime.toISOString()); con ...
++                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'doc.meetingDateTime.toISOString' in expression or statement.
+At line:1 char:1213
++ ... ing_not_found'); } else { console.log('db_meetingDateTime=' + doc.mee ...
++                                                                  ~
+Missing closing ')' in expression.
+At line:1 char:1246
++ ... .log('db_meetingDateTime=' + doc.meetingDateTime.toISOString()); cons ...
++                                                                  ~
+An expression was expected after '('.
+At line:1 char:1176
++ ... ; if (!doc) { console.log('claimmeeting_not_found'); } else { console ...
++                                                                 ~
+Missing closing '}' in statement block or type definition.
+At line:1 char:1247
++ ... og('db_meetingDateTime=' + doc.meetingDateTime.toISOString()); consol ...
++                                                                 ~
+Unexpected token ')' in expression or statement.
+At line:1 char:1486
++ ... OffsetMinutes=' + (doc.meetingUtcOffsetMinutes ?? 'null')); } await m ...
++                                                                 ~
+Unexpected token '}' in expression or statement.
+Not all parse errors were reported.  Correct the reported errors and try again.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordEx 
+   ception
+    + FullyQualifiedErrorId : ExpectedExpression
+ 

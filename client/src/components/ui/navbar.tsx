@@ -15,6 +15,7 @@ const menuItems = [
   { name: 'Features',     href: '/landing#features' },
   { name: 'Match Items',  href: '/matching' },
   { name: 'Messages',     href: '/messages' },
+  { name: 'Feedback',     href: '/feedback' },
   { name: 'Universities', href: '/landing#universities' },
   { name: 'Contact',      href: '/landing#contact' },
 ];
@@ -28,9 +29,17 @@ const TrueClaimLogo = () => (
   </div>
 );
 
+function hidePublicNavbar(pathname: string | null): boolean {
+  if (!pathname) return false;
+  if (pathname === '/login' || pathname === '/register') return true;
+  // Admin dashboard & verification console ship their own top bars — avoid stacking two navbars.
+  if (pathname.startsWith('/admin')) return true;
+  if (pathname === '/verification') return true;
+  return false;
+}
+
 export default function Navbar() {
   const pathname = usePathname();
-  const hiddenRoutes = ['/login', '/register', '/admin'];
   const [menuState, setMenuState] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
 
@@ -40,7 +49,7 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  if (hiddenRoutes.includes(pathname)) return null;
+  if (hidePublicNavbar(pathname)) return null;
 
   return (
     <header>
