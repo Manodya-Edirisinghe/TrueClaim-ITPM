@@ -1,10 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { MessageCircle, X, MapPin, Tag, Calendar, FileText } from 'lucide-react';
+import { FormEvent, useState } from 'react';
 import { toast } from 'sonner';
-import { getCurrentUserId } from '@/lib/auth';
+import api from '@/lib/axios';
 
 type MatchResult = {
   id: string;
@@ -13,10 +11,7 @@ type MatchResult = {
   location: string;
   date: string;
   image: string;
-  description?: string;
-  contactNumber?: string;
   matchScore: number;
-  ownerId?: string;
 };
 
 type ResultCardProps = {
@@ -24,161 +19,164 @@ type ResultCardProps = {
   isHighlighted?: boolean;
 };
 
+type ClaimFormData = {
+  claimantName: string;
+  claimantEmail: string;
+  claimantContactNumber: string;
+  ownershipPassword: string;
+  serialNumber: string;
+  lostPlace: string;
+};
+
+const initialForm: ClaimFormData = {
+  claimantName: '',
+  claimantEmail: '',
+  claimantContactNumber: '',
+  ownershipPassword: '',
+  serialNumber: '',
+  lostPlace: '',
+};
+
 export default function ResultCard({ item, isHighlighted = false }: ResultCardProps) {
-  const router = useRouter();
-  const [showDetails, setShowDetails] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [form, setForm] = useState<ClaimFormData>(initialForm);
 
-  const handleMessageOwner = () => {
-    const receiverId = item.ownerId ?? `owner_${item.id}`;
-    const currentUserId = getCurrentUserId();
+  const handleClaimSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-    if (receiverId === currentUserId) {
-      toast.info('This is your own item.');
+    if (
+      !form.claimantName.trim() ||
+      !form.claimantEmail.trim() ||
+      !form.claimantContactNumber.trim() ||
+      !form.ownershipPassword.trim() ||
+      !form.serialNumber.trim() ||
+      !form.lostPlace.trim()
+    ) {
+      toast.error('Please fill all claim verification fields.');
       return;
     }
 
-    router.push(
-      `/messages?itemId=${item.id}&receiverId=${encodeURIComponent(receiverId)}`
-    );
+    try {
+      setClaiming(true);
+      const response = await api.post('/claims', {
+        itemId: item.id,
+        ...form,
+      });
+
+      const verificationId = response.data?.claim?.verificationId;
+      const endsAt = response.data?.claim?.verificationEndsAt;
+      toast.success(
+        verificationId
+          ? `Claim submitted. Verification ID: ${verificationId}`
+          : 'Claim submitted. 48-hour verification started.'
+      );
+      if (endsAt) {
+        toast.info(`Countdown ends: ${new Date(endsAt).toLocaleString()}`);
+      }
+      setForm(initialForm);
+      setShowForm(false);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? 'Failed to submit claim.');
+    } finally {
+      setClaiming(false);
+    }
   };
 
   return (
-    <>
-      <article
-        className={`group overflow-hidden rounded-2xl border bg-white/5 transition duration-300 hover:-translate-y-1 hover:border-blue-400/60 hover:bg-white/10 ${
-          isHighlighted ? 'border-cyan-300/70 ring-1 ring-cyan-400/50' : 'border-white/10'
-        }`}
-      >
-        <div className="relative">
-          <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
+    <article
+      className={`group overflow-hidden rounded-2xl border bg-white/5 transition duration-300 hover:-translate-y-1 hover:border-blue-400/60 hover:bg-white/10 ${
+        isHighlighted ? 'border-cyan-300/70 ring-1 ring-cyan-400/50' : 'border-white/10'
+      }`}
+    >
+      <div className="relative">
+        <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
+        <div className="absolute right-3 top-3 rounded-full border border-blue-300/50 bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-100">
+          {item.matchScore}% Match
+        </div>
+      </div>
+
+      <div className="space-y-3 p-4">
+        <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+
+        <div className="space-y-1 text-sm text-white/75">
+          <p>
+            <span className="text-white/55">Category:</span> {item.category}
+          </p>
+          <p>
+            <span className="text-white/55">Location:</span> {item.location}
+          </p>
+          <p>
+            <span className="text-white/55">Date Reported:</span> {item.date}
+          </p>
         </div>
 
-        <div className="space-y-3 p-4">
-          <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-
-          <div className="space-y-1 text-sm text-white/75">
-            <p>
-              <span className="text-white/55">Category:</span> {item.category}
-            </p>
-            <p>
-              <span className="text-white/55">Location:</span> {item.location}
-            </p>
-            <p>
-              <span className="text-white/55">Date Reported:</span> {item.date}
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowDetails(true)}
-              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-            >
-              View Details
-            </button>
-            <button
-              onClick={handleMessageOwner}
-              className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20"
-              title="Message Owner"
-            >
-              <MessageCircle className="size-4" />
-              Message
-            </button>
-          </div>
-        </div>
-      </article>
-
-      {/* ── Detail Modal ──────────────────────────────────────────────── */}
-      {showDetails && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setShowDetails(false)}
+        <button className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
+          View Details
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowForm((prev) => !prev)}
+          className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
         >
-          <div
-            className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#0d1117] shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close button */}
-            <button
-              onClick={() => setShowDetails(false)}
-              className="absolute right-3 top-3 z-10 rounded-full bg-black/50 p-1.5 text-white/70 transition hover:bg-black/80 hover:text-white"
-            >
-              <X className="size-4" />
-            </button>
+          {showForm ? 'Close Claim Form' : 'Claim This Item'}
+        </button>
 
-            {/* Image */}
-            <img
-              src={item.image}
-              alt={item.title}
-              className="h-56 w-full object-cover"
+        {showForm && (
+          <form onSubmit={handleClaimSubmit} className="space-y-2 rounded-lg border border-white/15 bg-black/30 p-3">
+            <input
+              value={form.claimantName}
+              onChange={(event) => setForm((prev) => ({ ...prev, claimantName: event.target.value }))}
+              placeholder="Your full name"
+              className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
             />
-
-            {/* Content */}
-            <div className="space-y-4 p-5">
-              <h2 className="text-xl font-bold text-white">{item.title}</h2>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 ring-1 ring-white/[0.06]">
-                  <Tag className="size-3.5 text-blue-400" />
-                  <div>
-                    <p className="text-[10px] text-white/40">Category</p>
-                    <p className="text-sm text-white/90">{item.category}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 ring-1 ring-white/[0.06]">
-                  <MapPin className="size-3.5 text-emerald-400" />
-                  <div>
-                    <p className="text-[10px] text-white/40">Location</p>
-                    <p className="text-sm text-white/90">{item.location}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 ring-1 ring-white/[0.06]">
-                  <Calendar className="size-3.5 text-amber-400" />
-                  <div>
-                    <p className="text-[10px] text-white/40">Date Reported</p>
-                    <p className="text-sm text-white/90">{item.date}</p>
-                  </div>
-                </div>
-                {item.contactNumber && (
-                  <div className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 ring-1 ring-white/[0.06]">
-                    <FileText className="size-3.5 text-purple-400" />
-                    <div>
-                      <p className="text-[10px] text-white/40">Contact</p>
-                      <p className="text-sm text-white/90">{item.contactNumber}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {item.description && (
-                <div>
-                  <p className="mb-1 text-xs font-medium text-white/40">Description</p>
-                  <p className="text-sm leading-relaxed text-white/75">{item.description}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={() => {
-                    setShowDetails(false);
-                    handleMessageOwner();
-                  }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
-                >
-                  <MessageCircle className="size-4" />
-                  Message Owner
-                </button>
-                <button
-                  onClick={() => setShowDetails(false)}
-                  className="rounded-lg border border-white/10 px-4 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/5"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+            <input
+              value={form.claimantEmail}
+              onChange={(event) => setForm((prev) => ({ ...prev, claimantEmail: event.target.value }))}
+              type="email"
+              placeholder="Your email"
+              className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <input
+              value={form.claimantContactNumber}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  claimantContactNumber: event.target.value.replace(/\D/g, '').slice(0, 10),
+                }))
+              }
+              placeholder="Contact number"
+              className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <input
+              value={form.ownershipPassword}
+              onChange={(event) => setForm((prev) => ({ ...prev, ownershipPassword: event.target.value }))}
+              placeholder="Item password / lock code"
+              className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <input
+              value={form.serialNumber}
+              onChange={(event) => setForm((prev) => ({ ...prev, serialNumber: event.target.value }))}
+              placeholder="Serial number"
+              className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <input
+              value={form.lostPlace}
+              onChange={(event) => setForm((prev) => ({ ...prev, lostPlace: event.target.value }))}
+              placeholder="Lost place"
+              className="w-full rounded-md border border-white/20 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <button
+              type="submit"
+              disabled={claiming}
+              className="w-full rounded-md bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {claiming ? 'Submitting claim...' : 'Submit Claim for Verification'}
+            </button>
+          </form>
+        )}
+      </div>
+    </article>
   );
 }

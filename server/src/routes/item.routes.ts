@@ -10,6 +10,13 @@ router.get('/', itemController.getItems);
 
 router.get('/:id', itemController.getItem);
 
+router.post('/:id/queue-claimable', itemController.queueClaimableItem);
+router.post('/:id/stop-queue', itemController.stopQueuedClaimableItem);
+router.post('/:id/pause-queue', itemController.pauseQueuedClaimableItem);
+router.post('/:id/resume-queue', itemController.resumeQueuedClaimableItem);
+router.post('/:id/manual-approve', itemController.manualApproveQueuedItem);
+router.post('/:id/send-reclaim', itemController.sendQueuedItemToReclaim);
+
 router.delete('/:id', itemController.deleteItem);
 
 export default router;

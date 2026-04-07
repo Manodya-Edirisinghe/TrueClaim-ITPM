@@ -11,23 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
-import { getCurrentUserId } from '@/lib/auth';
-
-const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
-
-function rememberListingId(id: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
-    const ids = raw ? (JSON.parse(raw) as string[]) : [];
-    if (!ids.includes(id)) {
-      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
-    }
-  } catch {
-    // Ignore localStorage failures.
-  }
-}
 
 const ITEM_CATEGORIES = [
   'Wallet / Purse',
@@ -116,6 +99,22 @@ function validateItemForm(data: FormData): FieldErrors {
 const fieldErrorInputClass =
   'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500';
 
+const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
+
+function rememberListingId(id: string): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
+    const ids = raw ? (JSON.parse(raw) as string[]) : [];
+    if (!ids.includes(id)) {
+      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
+    }
+  } catch {
+    // Ignore localStorage failures and continue UX flow.
+  }
+}
+
 function FieldError({ id, message }: { id: string; message: string }) {
   return (
     <p id={id} className="text-sm text-red-600" role="alert">
@@ -180,11 +179,6 @@ function ItemForm({
     try {
       setIsSubmitting(true);
       await onSubmit(data);
-      toast.success(
-        type === 'lost'
-          ? 'Your lost item report was submitted successfully.'
-          : 'Your found item report was submitted successfully.'
-      );
       setData(initialFormData);
     } catch {
       toast.error('Failed to submit item. Please try again.');
@@ -378,12 +372,6 @@ function LostAndFoundPageContent() {
 
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
 
-  // Ensure a user ID exists in localStorage before any item is created.
-  // The axios interceptor will attach it as x-user-id on the POST request.
-  useEffect(() => {
-    getCurrentUserId();
-  }, []);
-
   useEffect(() => {
     if (tabParam === 'found') setActiveTab('found');
     else setActiveTab('lost');
@@ -402,18 +390,28 @@ function LostAndFoundPageContent() {
       payload.append('image', data.image);
     }
 
-    const response = await api.post('/items', payload);
+    const response = await api.post('/items', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
     const createdId = response.data?.item?._id;
     if (createdId) rememberListingId(createdId);
 
     toast.success(
       itemType === 'lost'
-        ? 'Your lost item report was submitted successfully.'
-        : 'Your found item report was submitted successfully.'
+        ? 'Lost item submitted. Showing best found matches.'
+        : 'Found item submitted. Showing best lost matches.'
     );
 
-    router.push('/my-listings');
+    const params = new URLSearchParams({
+      itemType,
+      title: data.itemTitle,
+      category: data.itemCategory,
+      location: data.location,
+      fromDate: data.time.slice(0, 10),
+    });
+
+    router.push(`/matching?${params.toString()}`);
   };
 
   const handleLostSubmit = async (data: FormData) => {
@@ -425,7 +423,7 @@ function LostAndFoundPageContent() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pt-24 py-6">
+    <div className="mx-auto max-w-2xl px-4 py-6">
       <Link
         href="/landing"
         className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] hover:text-[#0A66C2] transition-colors mb-2"

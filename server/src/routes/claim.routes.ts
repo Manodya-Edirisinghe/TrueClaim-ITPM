@@ -5,6 +5,8 @@ import {
   createClaim,
   verifyClaim,
   resolveClaim,
+  setClaimMeetingDetails,
+  getClaimAlertsByEmail,
 } from '../controllers/claim.controller';
 
 // ─── Claim Routes ─────────────────────────────────────────────────────────────
@@ -13,9 +15,11 @@ import {
 const router = Router();
 
 router.get('/', getAllClaims);
+router.get('/alerts/:email', getClaimAlertsByEmail);
 router.get('/:id', getClaimById);
 router.post('/', createClaim);
 router.post('/:id/verify', verifyClaim);
+router.patch('/:id/meeting', setClaimMeetingDetails);
 router.patch('/:id/resolve', resolveClaim);
 
 export default router;
