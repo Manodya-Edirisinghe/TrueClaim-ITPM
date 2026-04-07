@@ -1,243 +1,155 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import MatchingForm, { MatchSearchFilters } from '@/components/matching/MatchingForm';
-import ResultCard from '@/components/matching/ResultCard';
-import api, { resolveImageUrl } from '@/lib/axios';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, Sparkles } from 'lucide-react';
+import { getMatchLevel, matchItems, type MatchResult, type MatchableItem } from '@/lib/matching-utils';
+import { resolveImageUrl } from '@/lib/axios';
 
-type MatchItem = {
+type MatchItem = MatchableItem & {
   id: string;
-  itemType: 'lost' | 'found';
   title: string;
   description: string;
   category: string;
   location: string;
-  date: string;
   image: string;
-  contactNumber?: string;
-  matchScore: number;
-  ownerId?: string;
+};
+
+type DisplayMatchItem = MatchResult<MatchItem>;
+
+type SearchFilters = {
+  keyword: string;
+  category: string;
+  location: string;
 };
 
 type ApiItem = {
   _id: string;
-  itemType: 'lost' | 'found';
   itemTitle: string;
+  description?: string;
   itemCategory: string;
-  description: string;
   location: string;
-  time: string;
-  contactNumber?: string;
   imageUrl?: string | null;
-  ownerId?: string;
 };
 
-const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim/600/400';
+const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim-match/1200/800';
 
-function toDateOnly(value: string): string {
-  if (!value) return '';
-  return value.slice(0, 10);
-}
-
-/** Build a searchable blob from all item fields */
-function itemSearchText(item: MatchItem): string {
-  return [item.title, item.description, item.category, item.location].join(' ').toLowerCase();
-}
-
-function calculateMatchScore(
-  item: MatchItem,
-  filters: MatchSearchFilters,
-  withImageAssist: boolean
-): number {
-  let score = 40;
-  const searchText = itemSearchText(item);
-  const title = filters.title.trim().toLowerCase();
-  const category = filters.category.trim().toLowerCase();
-  const location = filters.location.trim().toLowerCase();
-
-  // Title match (strongest signal)
-  if (title) {
-    if (item.title.toLowerCase() === title) score += 30;
-    else if (item.title.toLowerCase().includes(title)) score += 20;
-  }
-
-  // Category match
-  if (category && category !== 'all') {
-    if (item.category.toLowerCase() === category) score += 15;
-    else if (item.category.toLowerCase().includes(category)) score += 8;
-  }
-
-  // Location match
-  if (location) {
-    if (item.location.toLowerCase() === location) score += 10;
-    else if (item.location.toLowerCase().includes(location)) score += 5;
-  }
-
-  // Keyword match — each keyword that hits any field boosts the score
-  const keywords = filters.keywords
-    .split(/\s+/)
-    .map((w) => w.toLowerCase())
-    .filter(Boolean);
-
-  if (keywords.length > 0) {
-    let hits = 0;
-    for (const kw of keywords) {
-      if (searchText.includes(kw)) hits++;
-    }
-    const hitRate = hits / keywords.length;
-    score += Math.round(hitRate * 20);
-  }
-
-  if (withImageAssist) score += 8;
-
-  return Math.min(99, score);
-}
-
-function filterItems(
-  items: MatchItem[],
-  filters: MatchSearchFilters,
-  withImageAssist: boolean
-): MatchItem[] {
-  const normalizedTitle = filters.title.trim().toLowerCase();
-  const normalizedCategory = filters.category.trim().toLowerCase();
+function applySecondaryFilters(items: DisplayMatchItem[], filters: SearchFilters): DisplayMatchItem[] {
   const normalizedLocation = filters.location.trim().toLowerCase();
-  const keywords = filters.keywords
-    .split(/\s+/)
-    .map((w) => w.toLowerCase())
-    .filter(Boolean);
 
-  const filtered = items.filter((item) => {
-    // Title is required — must match
-    if (normalizedTitle && !item.title.toLowerCase().includes(normalizedTitle)) {
-      return false;
-    }
+  return items.filter((item) => {
+    const matchesCategory = filters.category === 'All' || item.category === filters.category;
+    const matchesLocation =
+      !normalizedLocation || item.location.toLowerCase().includes(normalizedLocation);
 
-    // Category filter
-    if (
-      normalizedCategory &&
-      normalizedCategory !== 'all' &&
-      !item.category.toLowerCase().includes(normalizedCategory)
-    ) {
-      return false;
-    }
-
-    // Location filter
-    if (normalizedLocation && !item.location.toLowerCase().includes(normalizedLocation)) {
-      return false;
-    }
-
-    // Keywords — item must match at least one keyword (if any provided)
-    if (keywords.length > 0) {
-      const searchText = itemSearchText(item);
-      const hasAny = keywords.some((kw) => searchText.includes(kw));
-      if (!hasAny) return false;
-    }
-
-    return true;
+    return matchesCategory && matchesLocation;
   });
-
-  return filtered
-    .map((item) => ({
-      ...item,
-      matchScore: calculateMatchScore(item, filters, withImageAssist),
-    }))
-    .sort((a, b) => b.matchScore - a.matchScore);
 }
 
-function MatchingPageContent() {
-  const searchParams = useSearchParams();
+function toBaselineResults(items: MatchItem[]): DisplayMatchItem[] {
+  return items.map((item) => ({
+    ...item,
+    matchScore: 1,
+    matchPercentage: 0,
+    matchLevel: getMatchLevel(1),
+    matchedKeywords: [],
+    isLowConfidenceMatch: false,
+  }));
+}
 
-  const sourceItemType = searchParams.get('itemType');
-  const targetItemType =
-    sourceItemType === 'lost'
-      ? 'found'
-      : sourceItemType === 'found'
-        ? 'lost'
-        : null;
-
-  const initialFilters = useMemo<MatchSearchFilters>(
-    () => ({
-      title: searchParams.get('title') ?? '',
-      keywords: '',
-      category: searchParams.get('category') ?? 'All',
-      location: searchParams.get('location') ?? '',
-    }),
-    [searchParams]
-  );
-
+export default function MatchingPage() {
   const [items, setItems] = useState<MatchItem[]>([]);
-  const [filters, setFilters] = useState<MatchSearchFilters>(initialFilters);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<SearchFilters>({
+    keyword: '',
+    category: 'All',
+    location: '',
+  });
+  const [draftFilters, setDraftFilters] = useState<SearchFilters>(filters);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [results, setResults] = useState<DisplayMatchItem[]>([]);
+  const isAIUsed = Boolean(uploadedImage);
 
   const categories = useMemo(
-    () => Array.from(new Set(items.map((item) => item.category))),
+    () => ['All', ...Array.from(new Set(items.map((item) => item.category)))],
     [items]
   );
 
-  const results = useMemo(
-    () => filterItems(items, filters, Boolean(uploadedImage)),
-    [items, filters, uploadedImage]
-  );
-
   useEffect(() => {
-    setFilters(initialFilters);
-  }, [initialFilters]);
+    let isMounted = true;
 
-  useEffect(() => {
-    const fetchItems = async () => {
+    const loadItems = async () => {
       try {
-        setLoading(true);
-        setLoadError(null);
+        setIsLoadingItems(true);
+        setItemsError(null);
 
-        const response = await api.get('/items', {
-          params: {
-            ...(targetItemType ? { itemType: targetItemType } : {}),
-            page: 1,
-            limit: 100,
-          },
-        });
+        const response = await fetch('http://localhost:5000/api/items');
+        if (!response.ok) {
+          throw new Error(`Failed to load items (${response.status})`);
+        }
 
-        const apiItems: ApiItem[] = response.data?.items ?? [];
+        const data = await response.json();
+        const apiItems: ApiItem[] = Array.isArray(data?.items) ? data.items : [];
 
-        const mapped: MatchItem[] = apiItems.map((entry) => ({
+        const mappedItems: MatchItem[] = apiItems.map((entry) => ({
           id: entry._id,
-          itemType: entry.itemType,
           title: entry.itemTitle,
           description: entry.description ?? '',
           category: entry.itemCategory,
           location: entry.location,
-          date: toDateOnly(entry.time),
-          image: resolveImageUrl(entry.imageUrl) || FALLBACK_IMAGE,
-          contactNumber: entry.contactNumber,
-          matchScore: 0,
-          ownerId: entry.ownerId,
+          image: resolveImageUrl(entry.imageUrl) ?? FALLBACK_IMAGE,
         }));
 
-        setItems(mapped);
+        if (!isMounted) return;
+
+        setItems(mappedItems);
+        setResults(applySecondaryFilters(toBaselineResults(mappedItems), filters));
       } catch (error) {
-        console.error('[Matching Load Error]', error);
-        setLoadError('Failed to load match items. Please try again.');
+        if (!isMounted) return;
+        console.error('[Matching Items Load Error]', error);
+        setItemsError('Failed to load items. Please try again.');
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setIsLoadingItems(false);
+        }
       }
     };
 
-    fetchItems();
-  }, [targetItemType]);
+    loadItems();
 
-  useEffect(() => {
     return () => {
-      if (imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-      }
+      isMounted = false;
     };
-  }, [imagePreviewUrl]);
+  }, []);
 
-  const onImageSelect = (file: File | null) => {
+  const onSubmitSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setIsSearching(true);
+    setFilters(draftFilters);
+
+    try {
+      // Simulate AI processing delay; replace with real model/API latency later.
+      const processingDelay = 1000 + Math.floor(Math.random() * 1001);
+      await new Promise((resolve) => setTimeout(resolve, processingDelay));
+
+      const hasSearchSignal = Boolean(draftFilters.keyword.trim()) || Boolean(uploadedImage);
+      const scored = hasSearchSignal
+        ? matchItems(items, draftFilters.keyword, uploadedImage)
+        : toBaselineResults(items);
+      const filtered = applySecondaryFilters(scored, draftFilters);
+      setResults(filtered);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const onImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
     }
@@ -248,103 +160,243 @@ function MatchingPageContent() {
       return;
     }
 
-    const nextUrl = URL.createObjectURL(file);
     setUploadedImage(file);
-    setImagePreviewUrl(nextUrl);
-  };
-
-  const onSearch = (nextFilters: MatchSearchFilters) => {
-    setFilters(nextFilters);
+    setImagePreviewUrl(URL.createObjectURL(file));
   };
 
   return (
-    <main className="min-h-screen bg-[#05070c] text-white pt-24">
-      <section className="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10">
-
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Item Matching</h1>
-            <p className="mt-1 text-sm text-white/60">
-              Search lost and found entries using basic fields or AI-assisted image matching.
-            </p>
-          </div>
-
-          {uploadedImage && (
-            <div className="flex items-center gap-2 rounded-full border border-cyan-400/40 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 px-4 py-2 shadow-lg shadow-cyan-500/10">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
-              </span>
-              <span className="text-sm font-semibold text-cyan-200">Powered by AI</span>
-            </div>
-          )}
-        </div>
-
-        {targetItemType && (
-          <p className="mb-6 rounded-lg border border-blue-400/30 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-200">
-            Showing best <strong>{targetItemType}</strong> matches based on your submitted{' '}
-            <strong>{sourceItemType}</strong> report.
-          </p>
-        )}
-
-        {/* Search form */}
+    <main className="min-h-screen bg-[#05070c] pt-24 text-white">
+      <section className="mx-auto w-full max-w-7xl px-5 pb-12 lg:px-8">
         <div className="mb-8">
-          <MatchingForm
-            categories={categories}
-            imagePreviewUrl={imagePreviewUrl}
-            onImageSelect={onImageSelect}
-            initialFilters={initialFilters}
-            onSearch={onSearch}
-          />
+          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Item Matching</h1>
+          <p className="mt-2 max-w-2xl text-sm text-white/65 md:text-base">
+            Search with quick filters on the left and review ranked matching cards on the right.
+          </p>
         </div>
 
-        {/* Results */}
-        <div>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold">Matching Results</h2>
-              <p className="text-sm text-white/60">
-                {results.length} item{results.length === 1 ? '' : 's'} found
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+          <aside className="lg:col-span-4">
+            <form
+              onSubmit={onSubmitSearch}
+              className="sticky top-28 rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-lg shadow-black/20"
+            >
+              <h2 className="mb-4 text-lg font-semibold text-white">Search Filters</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-white/80">Keyword</label>
+                  <input
+                    type="text"
+                    value={draftFilters.keyword}
+                    onChange={(event) =>
+                      setDraftFilters((prev) => ({ ...prev, keyword: event.target.value }))
+                    }
+                    placeholder="e.g., black wallet"
+                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-white/80">Category</label>
+                  <select
+                    value={draftFilters.category}
+                    onChange={(event) =>
+                      setDraftFilters((prev) => ({ ...prev, category: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-400"
+                  >
+                    {categories.map((category) => (
+                      <option key={category} value={category} className="text-black">
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-white/80">Location</label>
+                  <input
+                    type="text"
+                    value={draftFilters.location}
+                    onChange={(event) =>
+                      setDraftFilters((prev) => ({ ...prev, location: event.target.value }))
+                    }
+                    placeholder="e.g., main library"
+                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSearching}
+                  className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSearching ? 'Searching...' : 'Search'}
+                </button>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced((prev) => !prev)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                  >
+                    <span className="text-sm font-semibold text-white">Advanced Filters</span>
+                    <ChevronDown
+                      className={`h-4 w-4 text-white/70 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {showAdvanced && (
+                    <div className="space-y-3 border-t border-white/10 px-4 py-4">
+                      <label className="block text-sm font-medium text-white/80">Upload Image</label>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg"
+                        onChange={onImageSelect}
+                        className="block w-full rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-blue-500/20 file:px-3 file:py-1 file:text-sm file:font-medium file:text-blue-200"
+                      />
+
+                      {isAIUsed ? (
+                        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Powered by AI
+                        </div>
+                      ) : null}
+
+                      {uploadedImage ? (
+                        <p className="text-xs text-cyan-200/90">Analyzing image...</p>
+                      ) : null}
+
+                      {imagePreviewUrl ? (
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Uploaded reference"
+                          className="h-36 w-full rounded-lg object-cover"
+                        />
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </form>
+          </aside>
+
+          <section className="lg:col-span-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Matching Results</h2>
+              <p className="text-sm text-white/65">
+                {results.length} result{results.length === 1 ? '' : 's'}
               </p>
             </div>
-          </div>
 
-          {loading ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 px-6 py-12 text-center text-sm text-white/60">
-              Loading matches...
-            </div>
-          ) : loadError ? (
-            <div className="rounded-xl border border-red-300/25 bg-red-500/10 px-6 py-12 text-center text-sm text-red-200">
-              {loadError}
-            </div>
-          ) : results.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 px-6 py-12 text-center text-sm text-white/60">
-              No matching items yet. Try adjusting the title, keywords, or category.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {results.map((item, index) => (
-                <ResultCard key={item.id} item={item} isHighlighted={Boolean(uploadedImage) && index < 3} />
-              ))}
-            </div>
-          )}
+            {isLoadingItems ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12 text-center text-sm text-white/65">
+                Loading items...
+              </div>
+            ) : itemsError ? (
+              <div className="rounded-xl border border-red-300/30 bg-red-500/10 px-6 py-12 text-center text-sm text-red-200">
+                {itemsError}
+              </div>
+            ) : isSearching ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12">
+                <div className="mx-auto max-w-sm text-center">
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
+                    AI Matching Engine
+                  </div>
+                  <p className="text-sm text-white/75">
+                    {uploadedImage ? 'Analyzing...' : 'Analyzing item keywords and ranking candidates...'}
+                  </p>
+                  <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                    <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" />
+                  </div>
+                </div>
+              </div>
+            ) : results.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12 text-center text-sm text-white/65">
+                No matching items found.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {results.map((item) => {
+                  const level = item.matchLevel;
+                  const confidence = item.matchPercentage;
+                  const confidenceClassName =
+                    level === 'High Match'
+                      ? 'text-emerald-300 bg-emerald-500/15 border-emerald-400/35'
+                      : level === 'Medium Match'
+                        ? 'text-amber-300 bg-amber-500/15 border-amber-400/35'
+                        : 'text-rose-300 bg-rose-500/15 border-rose-400/35';
+                  const levelClassName =
+                    level === 'High Match'
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-400/35'
+                      : level === 'Medium Match'
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-400/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-400/35';
+                  const indicatorClassName =
+                    level === 'High Match'
+                      ? 'bg-emerald-400'
+                      : level === 'Medium Match'
+                        ? 'bg-amber-400'
+                        : 'bg-rose-400';
+
+                  return (
+                    <article
+                      key={item.id}
+                      className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-white/[0.06]"
+                    >
+                      <div className="relative">
+                        <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
+                        <span className="absolute left-3 top-3 rounded-full border border-cyan-300/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
+                          AI Suggested
+                        </span>
+                      </div>
+                      <div className="space-y-3 p-4">
+                        <h3 className="line-clamp-1 text-lg font-semibold text-white">{item.title}</h3>
+
+                        {item.isLowConfidenceMatch ? (
+                          <div className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
+                            Low confidence match
+                          </div>
+                        ) : null}
+
+                        <p className="text-sm text-white/70">Location: {item.location}</p>
+
+                        <div className={`rounded-xl border px-3 py-2 ${confidenceClassName}`}>
+                          <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide">
+                            <span>Match Confidence</span>
+                            <span>{confidence}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-black/20">
+                            <div
+                              className={`h-full rounded-full ${
+                                level === 'High Match'
+                                  ? 'bg-emerald-300'
+                                  : level === 'Medium Match'
+                                    ? 'bg-amber-300'
+                                    : 'bg-rose-300'
+                              }`}
+                              style={{ width: `${confidence}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className={`h-2.5 w-2.5 rounded-full ${indicatorClassName}`} />
+                          <span className="font-medium text-white/75">Match Level:</span>
+                          <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${levelClassName}`}>
+                            {level}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       </section>
     </main>
-  );
-}
-
-export default function MatchingPage() {
-  return (
-    <Suspense
-      fallback={
-        <main className="min-h-screen bg-[#05070c] px-6 py-10 text-sm text-white/70">
-          Loading matches...
-        </main>
-      }
-    >
-      <MatchingPageContent />
-    </Suspense>
   );
 }
