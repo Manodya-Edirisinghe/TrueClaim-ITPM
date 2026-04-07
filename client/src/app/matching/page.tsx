@@ -328,7 +328,7 @@ export default function MatchingPage() {
                 <button
                   type="submit"
                   disabled={isSearching}
-                  className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-lg bg-[#6C3FF5] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5b30db] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSearching ? 'Searching...' : 'Search'}
                 </button>
