@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IItem extends Document {
   itemType: 'lost' | 'found';
@@ -10,8 +10,14 @@ export interface IItem extends Document {
   contactNumber: string;
   imageUrl?: string;
   imagePublicId?: string;
-  // Who posted this item — used for messaging.
-  // FUTURE UPGRADE: Will be set by JWT/session middleware instead of header.
+  hasOwner: boolean;
+  claimStatus: 'open' | 'under_verification' | 'claim_verified' | 'claimed';
+  ownerClaimId?: Types.ObjectId;
+  needsOwnerReclaim: boolean;
+  claimableQueueStartedAt?: Date | null;
+  claimableQueueEndsAt?: Date | null;
+  claimableQueuePaused: boolean;
+  claimableQueueRemainingMs?: number | null;
   ownerId?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -61,6 +67,43 @@ const itemSchema = new Schema<IItem>(
     },
     imagePublicId: {
       type: String,
+      default: null,
+    },
+    hasOwner: {
+      type: Boolean,
+      default: false,
+    },
+    claimStatus: {
+      type: String,
+      enum: ['open', 'under_verification', 'claim_verified', 'claimed'],
+      default: 'open',
+    },
+    ownerClaimId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Claim',
+      default: null,
+    },
+    needsOwnerReclaim: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    claimableQueueStartedAt: {
+      type: Date,
+      default: null,
+    },
+    claimableQueueEndsAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    claimableQueuePaused: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    claimableQueueRemainingMs: {
+      type: Number,
       default: null,
     },
     ownerId: {

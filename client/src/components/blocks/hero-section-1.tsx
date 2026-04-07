@@ -40,6 +40,7 @@ const TrueClaimLogo = ({ className }: { className?: string }) => (
 );
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+// Marketing nav lives in `components/ui/navbar.tsx` (root layout). No second header here.
 
 export function HeroSection() {
   return (
@@ -357,6 +358,6 @@ export function HeroSection() {
             ))}
           </div>
         </footer>
-      </main>
+    </main>
   );
 }

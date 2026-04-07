@@ -6,3 +6,6 @@ config.bat
 server/uploads/
 temp_auto_push.bat
 temp_interactive_push.bat
+
+# Local Claude Code / agent permissions (may contain machine-specific URLs and test headers)
+.claude/settings.local.json

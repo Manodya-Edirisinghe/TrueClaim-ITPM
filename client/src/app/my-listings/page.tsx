@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import api, { resolveImageUrl } from '@/lib/axios';
+import api from '@/lib/axios';
 import { Button } from '@/components/ui/button';
 
 const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
@@ -91,7 +91,7 @@ function ListingCard({
       <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
         <div className="overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-black/20">
           {item.imageUrl ? (
-            <img src={resolveImageUrl(item.imageUrl) ?? ''} alt={item.itemTitle} className="h-36 w-full object-cover" />
+            <img src={item.imageUrl} alt={item.itemTitle} className="h-36 w-full object-cover" />
           ) : (
             <div className="flex h-36 items-center justify-center text-xs text-muted-foreground">
               No image
@@ -119,7 +119,7 @@ function ListingCard({
           </div>
 
           <div className="flex flex-col gap-2 pt-2 sm:flex-row">
-            <MatchItemButton item={item} />
+            {item.itemType === 'lost' && <MatchItemButton item={item} />}
             <Button
               type="button"
               variant="destructive"
@@ -201,7 +201,7 @@ export default function MyListingsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-24 py-6">
+    <main className="mx-auto max-w-5xl px-4 py-6">
       <Link
         href="/lostandfound"
         className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:text-[#0A66C2]"

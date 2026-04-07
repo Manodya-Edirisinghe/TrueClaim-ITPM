@@ -260,25 +260,30 @@ function LoginPage() {
   const orangePos = calculatePosition(orangeRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
+    e.preventDefault();
+    setIsLoading(true);
 
-  try {
-    // simulate login delay (you already had this)
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 400));
 
-    // 👇 SIMPLE EMAIL CHECK
-    if (email === "admin@trueclaim.com") {
-      router.push("/admin");
-    } else {
-      router.push("/landing");
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (
+        normalizedEmail === "verification@trueclaim.com" &&
+        password === "verification123"
+      ) {
+        router.push("/verification");
+      } else if (normalizedEmail === "admin@trueclaim.com") {
+        router.push("/admin");
+      } else {
+        router.push("/landing");
+      }
+    } catch {
+      setError("Something went wrong");
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    setError("Something went wrong");
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
