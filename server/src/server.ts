@@ -7,20 +7,20 @@ import mongoose from 'mongoose';
 import { Server as SocketIOServer } from 'socket.io';
 import { errorHandler } from './middlewares/error.middleware';
 
+// Routes
 import itemRoutes from './routes/item.routes';
 import messageRoutes, { conversationRouter } from './routes/message.routes';
 import claimRoutes from './routes/claim.routes';
 import adminRoutes from './routes/admin.routes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import authRoutes from './routes/authRoutes';
-import notificationRoutes from './routes/notification.routes';
-import ClaimMeeting from './models/ClaimMeeting';
 
 dotenv.config();
 
 const app: Application = express();
 const httpServer = http.createServer(app);
 
+// ─── Socket.io ───────────────────────────────────────────────────────────────
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:3000',
@@ -31,12 +31,15 @@ const io = new SocketIOServer(httpServer, {
 io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
 
+  // Join a room scoped to a conversation (itemId + sorted participants)
   socket.on('join_conversation', (conversationId: string) => {
     socket.join(conversationId);
     console.log(`[Socket] ${socket.id} joined room ${conversationId}`);
   });
 
+  // Real-time message relay: client emits this after the REST API persists it
   socket.on('send_message', (data: { conversationId: string; message: unknown }) => {
+    // Broadcast to everyone else in the conversation room
     socket.to(data.conversationId).emit('receive_message', data.message);
   });
 
@@ -45,6 +48,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(
   cors({
     origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:3000',
@@ -55,6 +59,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/items', itemRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/conversations', conversationRouter);
@@ -62,29 +67,28 @@ app.use('/api/claims', claimRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/notifications', notificationRoutes);
-
+// ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ─── Error Handling ───────────────────────────────────────────────────────────
 app.use(errorHandler);
 
+// ─── Database Connection ──────────────────────────────────────────────────────
 const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/trueclaim';
 
 async function connectDB(): Promise<void> {
   try {
     await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
-    console.log('[MongoDB] Connected successfully');
-    await ClaimMeeting.createCollection();
+    console.log('[MongoDB] Connected successfully to Atlas');
   } catch (error) {
-    console.warn('[MongoDB] Primary connection failed, trying in-memory database...', error);
+    console.warn('[MongoDB] Atlas unavailable, starting in-memory database...');
     try {
       const { MongoMemoryServer } = await import('mongodb-memory-server');
       const mongod = await MongoMemoryServer.create();
       await mongoose.connect(mongod.getUri());
       console.log('[MongoDB] Connected to in-memory database');
-      await ClaimMeeting.createCollection();
     } catch (memError) {
       console.error('[MongoDB] All connections failed:', memError);
       process.exit(1);
@@ -92,6 +96,7 @@ async function connectDB(): Promise<void> {
   }
 }
 
+// ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? '5000', 10);
 
 connectDB().then(() => {

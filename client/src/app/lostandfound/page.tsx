@@ -12,6 +12,22 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
 
+const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
+
+function rememberListingId(id: string): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
+    const ids = raw ? (JSON.parse(raw) as string[]) : [];
+    if (!ids.includes(id)) {
+      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
+    }
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
 const ITEM_CATEGORIES = [
   'Wallet / Purse',
   'Keys',
@@ -99,22 +115,6 @@ function validateItemForm(data: FormData): FieldErrors {
 const fieldErrorInputClass =
   'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500';
 
-const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
-
-function rememberListingId(id: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const raw = window.localStorage.getItem(MY_LISTING_IDS_KEY);
-    const ids = raw ? (JSON.parse(raw) as string[]) : [];
-    if (!ids.includes(id)) {
-      window.localStorage.setItem(MY_LISTING_IDS_KEY, JSON.stringify([id, ...ids]));
-    }
-  } catch {
-    // Ignore localStorage failures and continue UX flow.
-  }
-}
-
 function FieldError({ id, message }: { id: string; message: string }) {
   return (
     <p id={id} className="text-sm text-red-600" role="alert">
@@ -179,6 +179,11 @@ function ItemForm({
     try {
       setIsSubmitting(true);
       await onSubmit(data);
+      toast.success(
+        type === 'lost'
+          ? 'Your lost item report was submitted successfully.'
+          : 'Your found item report was submitted successfully.'
+      );
       setData(initialFormData);
     } catch {
       toast.error('Failed to submit item. Please try again.');
@@ -279,12 +284,6 @@ function ItemForm({
             value={data.time}
             onChange={handleChange}
             max={dateMax}
-            onFocus={(event) => {
-              const input = event.currentTarget as HTMLInputElement & {
-                showPicker?: () => void;
-              };
-              input.showPicker?.();
-            }}
             aria-invalid={!!errors.time}
             aria-describedby={errors.time ? errId('time') : undefined}
             className={cn(errors.time && fieldErrorInputClass)}
@@ -353,7 +352,7 @@ function ItemForm({
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#0A66C2] hover:bg-[#0958a8] text-white sm:w-auto"
+            className="w-full bg-[#6C3FF5] hover:bg-[#0958a8] text-white sm:w-auto"
           >
             {isSubmitting
               ? 'Submitting...'
@@ -390,28 +389,12 @@ function LostAndFoundPageContent() {
       payload.append('image', data.image);
     }
 
-    const response = await api.post('/items', payload, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post('/items', payload);
 
     const createdId = response.data?.item?._id;
     if (createdId) rememberListingId(createdId);
 
-    toast.success(
-      itemType === 'lost'
-        ? 'Lost item submitted. Showing best found matches.'
-        : 'Found item submitted. Showing best lost matches.'
-    );
-
-    const params = new URLSearchParams({
-      itemType,
-      title: data.itemTitle,
-      category: data.itemCategory,
-      location: data.location,
-      fromDate: data.time.slice(0, 10),
-    });
-
-    router.push(`/matching?${params.toString()}`);
+    router.push('/my-listings');
   };
 
   const handleLostSubmit = async (data: FormData) => {
@@ -423,7 +406,7 @@ function LostAndFoundPageContent() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <div className="mx-auto max-w-2xl px-4 pt-24 py-6">
       <Link
         href="/landing"
         className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] hover:text-[#0A66C2] transition-colors mb-2"
