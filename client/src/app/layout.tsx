@@ -20,6 +20,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ToastProvider>
+          <div className="app-gradient-bg" />
           <Navbar />
           <main className="min-h-screen overflow-x-hidden">
             {children}
