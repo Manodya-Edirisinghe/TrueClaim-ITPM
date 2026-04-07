@@ -76,6 +76,40 @@ export async function getItem(
   }
 }
 
+// PUT /api/items/:id
+export async function updateItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { itemTitle, itemCategory, description, time, location, contactNumber } = req.body;
+
+    const imageBuffer = req.file?.buffer;
+    const originalName = req.file?.originalname;
+
+    const item = await itemService.updateItem(req.params.id, {
+      itemTitle,
+      itemCategory,
+      description,
+      time,
+      location,
+      contactNumber,
+      imageBuffer,
+      originalName,
+    });
+
+    if (!item) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    res.json({ message: 'Item updated successfully', item });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // DELETE /api/items/:id
 export async function deleteItem(
   req: Request,

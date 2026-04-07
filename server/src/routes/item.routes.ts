@@ -10,6 +10,8 @@ router.get('/', itemController.getItems);
 
 router.get('/:id', itemController.getItem);
 
+router.put('/:id', upload.single('image'), itemController.updateItem);
+
 router.delete('/:id', itemController.deleteItem);
 
 export default router;
