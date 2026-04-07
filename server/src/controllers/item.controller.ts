@@ -12,6 +12,8 @@ export async function createItem(
       req.body;
 
     const imageBuffer = req.file?.buffer;
+    const originalName = req.file?.originalname;
+    const ownerId = req.headers['x-user-id'] as string | undefined;
 
     const item = await itemService.createItem({
       itemType,
@@ -22,6 +24,8 @@ export async function createItem(
       location,
       contactNumber,
       imageBuffer,
+      originalName,
+      ownerId,
     });
 
     res.status(201).json({ message: 'Item submitted successfully', item });
@@ -87,118 +91,6 @@ export async function deleteItem(
     }
 
     res.json({ message: 'Item deleted successfully' });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/items/:id/queue-claimable
-export async function queueClaimableItem(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const item = await itemService.queueItemForClaimVerification(req.params.id);
-
-    res.json({
-      message: 'Item moved to pending verification queue for 48 hours.',
-      item,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/items/:id/stop-queue
-export async function stopQueuedClaimableItem(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const item = await itemService.stopClaimableQueue(req.params.id);
-
-    res.json({
-      message: 'Countdown stopped for this item.',
-      item,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/items/:id/pause-queue
-export async function pauseQueuedClaimableItem(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const item = await itemService.pauseClaimableQueue(req.params.id);
-
-    res.json({
-      message: 'Countdown paused for this item.',
-      item,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/items/:id/resume-queue
-export async function resumeQueuedClaimableItem(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const item = await itemService.resumeClaimableQueue(req.params.id);
-
-    res.json({
-      message: 'Countdown resumed for this item.',
-      item,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/items/:id/send-reclaim
-export async function sendQueuedItemToReclaim(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const item = await itemService.sendQueuedItemToReclaim(req.params.id);
-
-    res.json({
-      message: 'Item moved to reclaim list.',
-      item,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/items/:id/manual-approve
-export async function manualApproveQueuedItem(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const result = await itemService.manualApproveQueuedItem(req.params.id);
-
-    res.json({
-      message: result.createdNewClaim
-        ? 'Item manually approved and a claim record was created for Claims Hub.'
-        : 'Item manually approved and linked claim moved to approved in Claims Hub.',
-      item: result.item,
-      claimId: result.claimId,
-      createdNewClaim: result.createdNewClaim,
-    });
   } catch (err) {
     next(err);
   }

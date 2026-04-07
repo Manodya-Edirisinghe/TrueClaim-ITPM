@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
-import { getCurrentUserId } from '@/lib/auth';
 
 const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
 
@@ -371,12 +370,6 @@ function LostAndFoundPageContent() {
   const tabParam = searchParams.get('tab');
 
   const [activeTab, setActiveTab] = useState<'lost' | 'found'>('lost');
-
-  // Ensure a user ID exists in localStorage before any item is created.
-  // The axios interceptor will attach it as x-user-id on the POST request.
-  useEffect(() => {
-    getCurrentUserId();
-  }, []);
 
   useEffect(() => {
     if (tabParam === 'found') setActiveTab('found');
