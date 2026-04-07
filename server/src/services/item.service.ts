@@ -19,6 +19,17 @@ export interface CreateItemDTO {
   ownerId?: string;
 }
 
+export interface UpdateItemDTO {
+  itemTitle: string;
+  itemCategory: string;
+  description: string;
+  time: string;
+  location: string;
+  contactNumber: string;
+  imageBuffer?: Buffer;
+  originalName?: string;
+}
+
 function validatePayload(dto: CreateItemDTO): void {
   if (!VALID_TYPES.includes(dto.itemType as ItemType)) {
     const err: Error & { statusCode?: number; isOperational?: boolean } =
@@ -123,8 +134,69 @@ export async function getAllItems(
   return { items, total };
 }
 
+function validateUpdatePayload(dto: UpdateItemDTO): void {
+  const required: (keyof UpdateItemDTO)[] = [
+    'itemTitle',
+    'itemCategory',
+    'description',
+    'time',
+    'location',
+    'contactNumber',
+  ];
+
+  for (const field of required) {
+    if (!dto[field]) {
+      const err: Error & { statusCode?: number; isOperational?: boolean } =
+        new Error(`${field} is required.`);
+      err.statusCode = 400;
+      err.isOperational = true;
+      throw err;
+    }
+  }
+
+  if (isNaN(Date.parse(dto.time))) {
+    const err: Error & { statusCode?: number; isOperational?: boolean } =
+      new Error('Invalid date/time format.');
+    err.statusCode = 400;
+    err.isOperational = true;
+    throw err;
+  }
+}
+
 export async function getItemById(id: string): Promise<IItem | null> {
   return Item.findById(id);
+}
+
+export async function updateItem(id: string, dto: UpdateItemDTO): Promise<IItem | null> {
+  validateUpdatePayload(dto);
+
+  const item = await Item.findById(id);
+  if (!item) return null;
+
+  if (dto.imageBuffer) {
+    const saved = await saveImageLocally(dto.imageBuffer, dto.originalName);
+
+    if (item.imagePublicId) {
+      try {
+        await fs.unlink(path.join(UPLOADS_DIR, item.imagePublicId));
+      } catch {
+        // Ignore if old image file no longer exists.
+      }
+    }
+
+    item.imageUrl = saved.imageUrl;
+    item.imagePublicId = saved.imagePublicId;
+  }
+
+  item.itemTitle = dto.itemTitle;
+  item.itemCategory = dto.itemCategory;
+  item.description = dto.description;
+  item.time = new Date(dto.time);
+  item.location = dto.location;
+  item.contactNumber = dto.contactNumber;
+
+  await item.save();
+  return item;
 }
 
 export async function deleteItem(id: string): Promise<boolean> {

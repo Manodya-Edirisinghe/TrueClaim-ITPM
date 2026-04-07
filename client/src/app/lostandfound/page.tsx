@@ -352,7 +352,7 @@ function ItemForm({
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#0A66C2] hover:bg-[#0958a8] text-white sm:w-auto"
+            className="w-full bg-[#6C3FF5] hover:bg-[#0958a8] text-white sm:w-auto"
           >
             {isSubmitting
               ? 'Submitting...'
