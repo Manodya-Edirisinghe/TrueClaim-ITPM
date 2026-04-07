@@ -51,8 +51,9 @@ function formatDateTime(value: string): string {
 
 function MatchItemButton({ item }: { item: ListingItem }) {
   const params = new URLSearchParams({
-    itemType: item.itemType,
-    title: item.itemTitle,
+    sourceType: item.itemType,
+    sourceItemId: item._id,
+    keyword: item.itemTitle,
     category: item.itemCategory,
     location: item.location,
   });
