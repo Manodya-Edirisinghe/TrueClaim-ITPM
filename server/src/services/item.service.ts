@@ -1,20 +1,10 @@
-import mongoose from 'mongoose';
+import path from 'path';
+import fs from 'fs/promises';
+import crypto from 'crypto';
 import { Item, IItem } from '../models/item.model';
-import { Claim } from '../models/Claim';
-import {
-  uploadImageToCloudinary,
-  deleteImageFromCloudinary,
-} from '../utils/cloudinary.util';
-import { createNotificationFromItem } from './notification.service';
 
 const VALID_TYPES = ['lost', 'found'] as const;
 type ItemType = (typeof VALID_TYPES)[number];
-
-function createManualVerificationId(): string {
-  const now = Date.now().toString(36).toUpperCase();
-  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `MANUAL-${now}-${random}`;
-}
 
 export interface CreateItemDTO {
   itemType: string;
@@ -25,6 +15,8 @@ export interface CreateItemDTO {
   location: string;
   contactNumber: string;
   imageBuffer?: Buffer;
+  originalName?: string;
+  ownerId?: string;
 }
 
 function validatePayload(dto: CreateItemDTO): void {
@@ -65,6 +57,28 @@ function validatePayload(dto: CreateItemDTO): void {
   }
 }
 
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+
+async function saveImageLocally(
+  buffer: Buffer,
+  originalName?: string
+): Promise<{ imageUrl: string; imagePublicId: string }> {
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+
+  const ext = originalName
+    ? path.extname(originalName)
+    : '.jpg';
+  const filename = `${crypto.randomUUID()}${ext}`;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  await fs.writeFile(filePath, buffer);
+
+  return {
+    imageUrl: `/uploads/${filename}`,
+    imagePublicId: filename,
+  };
+}
+
 export async function createItem(dto: CreateItemDTO): Promise<IItem> {
   validatePayload(dto);
 
@@ -72,9 +86,9 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
   let imagePublicId: string | undefined;
 
   if (dto.imageBuffer) {
-    const uploaded = await uploadImageToCloudinary(dto.imageBuffer);
-    imageUrl = uploaded.url;
-    imagePublicId = uploaded.publicId;
+    const saved = await saveImageLocally(dto.imageBuffer, dto.originalName);
+    imageUrl = saved.imageUrl;
+    imagePublicId = saved.imagePublicId;
   }
 
   const item = await Item.create({
@@ -87,13 +101,8 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
     contactNumber: dto.contactNumber,
     imageUrl,
     imagePublicId,
+    ownerId: dto.ownerId,
   });
-
-  try {
-    await createNotificationFromItem(item);
-  } catch (error) {
-    console.error('[Notification] Failed to create notification from item:', error);
-  }
 
   return item;
 }
@@ -119,398 +128,17 @@ export async function getItemById(id: string): Promise<IItem | null> {
 }
 
 export async function deleteItem(id: string): Promise<boolean> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
   const item = await Item.findById(id);
   if (!item) return false;
 
   if (item.imagePublicId) {
     try {
-      await deleteImageFromCloudinary(item.imagePublicId);
+      await fs.unlink(path.join(UPLOADS_DIR, item.imagePublicId));
     } catch {
-      const err: Error & { statusCode?: number; isOperational?: boolean } =
-        new Error('Failed to remove image from Cloudinary. Please try again.');
-      err.statusCode = 502;
-      err.isOperational = true;
-      throw err;
+      // Ignore if file already removed from disk.
     }
   }
 
   await item.deleteOne();
   return true;
-}
-
-export async function queueItemForClaimVerification(id: string): Promise<IItem> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const item = await Item.findById(id);
-  if (!item) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Item not found.');
-    err.statusCode = 404;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.hasOwner || item.claimStatus === 'claimed') {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Claimed items cannot be moved to pending verification queue.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const startedAt = new Date();
-  const endsAt = new Date(startedAt.getTime() + 48 * 60 * 60 * 1000);
-
-  item.claimStatus = 'under_verification';
-  item.needsOwnerReclaim = false;
-  item.claimableQueueStartedAt = startedAt;
-  item.claimableQueueEndsAt = endsAt;
-  item.claimableQueuePaused = false;
-  item.claimableQueueRemainingMs = null;
-
-  await item.save();
-  return item;
-}
-
-export async function releaseExpiredClaimableQueueItems(): Promise<number> {
-  const now = new Date();
-
-  const expiredQueuedItems = await Item.find({
-    claimStatus: 'under_verification',
-    claimableQueueEndsAt: { $lte: now },
-    claimableQueuePaused: false,
-    hasOwner: false,
-  });
-
-  if (expiredQueuedItems.length === 0) return 0;
-
-  let releasedCount = 0;
-
-  for (const item of expiredQueuedItems) {
-    const activeClaimsCount = await Claim.countDocuments({
-      itemId: item._id,
-      status: { $in: ['pending_verification', 'claim_verified', 'approved'] },
-    });
-
-    if (activeClaimsCount === 0) {
-      item.claimStatus = 'open';
-      item.needsOwnerReclaim = true;
-    }
-
-    item.claimableQueueStartedAt = null;
-    item.claimableQueueEndsAt = null;
-    item.claimableQueuePaused = false;
-    item.claimableQueueRemainingMs = null;
-    await item.save();
-    releasedCount += 1;
-  }
-
-  return releasedCount;
-}
-
-export async function stopClaimableQueue(id: string): Promise<IItem> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const item = await Item.findById(id);
-  if (!item) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Item not found.');
-    err.statusCode = 404;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.hasOwner || item.claimStatus === 'claimed') {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('This item already has an approved owner and cannot be moved to reclaim list.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  item.claimStatus = 'under_verification';
-  item.needsOwnerReclaim = false;
-  item.claimableQueueStartedAt = null;
-  item.claimableQueueEndsAt = null;
-  item.claimableQueuePaused = false;
-  item.claimableQueueRemainingMs = null;
-
-  await item.save();
-  return item;
-}
-
-// Backward-compatible alias for older controller references.
-export async function stopClaimableQueueAndSendToReclaim(id: string): Promise<IItem> {
-  return stopClaimableQueue(id);
-}
-
-export async function pauseClaimableQueue(id: string): Promise<IItem> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const item = await Item.findById(id);
-  if (!item) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Item not found.');
-    err.statusCode = 404;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.hasOwner || item.claimStatus === 'claimed') {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('This item already has an approved owner and cannot be paused.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.claimableQueuePaused) {
-    return item;
-  }
-
-  if (!item.claimableQueueEndsAt) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('This item is not currently running in manual queue countdown.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const remainingMs = Math.max(item.claimableQueueEndsAt.getTime() - Date.now(), 0);
-  item.claimableQueuePaused = true;
-  item.claimableQueueRemainingMs = remainingMs;
-  item.claimableQueueEndsAt = null;
-  await item.save();
-  return item;
-}
-
-export async function resumeClaimableQueue(id: string): Promise<IItem> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const item = await Item.findById(id);
-  if (!item) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Item not found.');
-    err.statusCode = 404;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.hasOwner || item.claimStatus === 'claimed') {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('This item already has an approved owner and cannot be resumed.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (!item.claimableQueuePaused) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('This item is not paused.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const remainingMs = Math.max(item.claimableQueueRemainingMs ?? 0, 0);
-  if (remainingMs === 0) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('No remaining countdown time available to resume.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const startedAt = new Date();
-  item.claimableQueueStartedAt = startedAt;
-  item.claimableQueueEndsAt = new Date(startedAt.getTime() + remainingMs);
-  item.claimableQueuePaused = false;
-  item.claimableQueueRemainingMs = null;
-  item.claimStatus = 'under_verification';
-  item.needsOwnerReclaim = false;
-
-  await item.save();
-  return item;
-}
-
-export async function sendQueuedItemToReclaim(id: string): Promise<IItem> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const item = await Item.findById(id);
-  if (!item) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Item not found.');
-    err.statusCode = 404;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.hasOwner || item.claimStatus === 'claimed') {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('This item already has an approved owner and cannot be moved to reclaim list.');
-    err.statusCode = 409;
-    err.isOperational = true;
-    throw err;
-  }
-
-  item.claimStatus = 'open';
-  item.needsOwnerReclaim = true;
-  item.claimableQueueStartedAt = null;
-  item.claimableQueueEndsAt = null;
-  item.claimableQueuePaused = false;
-  item.claimableQueueRemainingMs = null;
-
-  await item.save();
-  return item;
-}
-
-export async function manualApproveQueuedItem(id: string): Promise<{ item: IItem; claimId: string; createdNewClaim: boolean }> {
-  if (!mongoose.isValidObjectId(id)) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Invalid item id format.');
-    err.statusCode = 400;
-    err.isOperational = true;
-    throw err;
-  }
-
-  const item = await Item.findById(id);
-  if (!item) {
-    const err: Error & { statusCode?: number; isOperational?: boolean } =
-      new Error('Item not found.');
-    err.statusCode = 404;
-    err.isOperational = true;
-    throw err;
-  }
-
-  if (item.hasOwner || item.claimStatus === 'claimed') {
-    const existingApprovedClaim = await Claim.findOne({
-      itemId: item._id,
-      status: 'approved',
-    }).sort({ updatedAt: -1 });
-
-    if (existingApprovedClaim) {
-      return {
-        item,
-        claimId: String(existingApprovedClaim._id),
-        createdNewClaim: false,
-      };
-    }
-  }
-
-  let targetClaim = await Claim.findOne({
-    itemId: item._id,
-    status: 'claim_verified',
-  }).sort({ createdAt: 1 });
-
-  if (!targetClaim) {
-    targetClaim = await Claim.findOne({
-      itemId: item._id,
-      status: 'pending_verification',
-    }).sort({ verificationEndsAt: 1 });
-  }
-
-  let createdNewClaim = false;
-
-  if (!targetClaim) {
-    const now = new Date();
-    targetClaim = await Claim.create({
-      itemId: item._id,
-      claimantName: 'Manual Queue Approval',
-      claimantEmail: `manual-approval+${String(item._id)}@trueclaim.local`,
-      claimantContactNumber: item.contactNumber,
-      ownershipPassword: 'manual-approval',
-      serialNumber: `MANUAL-${String(item._id).slice(-6).toUpperCase()}`,
-      lostPlace: item.location,
-      verificationId: createManualVerificationId(),
-      verificationStartedAt: now,
-      verificationEndsAt: now,
-      status: 'approved',
-      alerts: [
-        {
-          type: 'claim_decision',
-          message: 'Claim manually approved from admin 48-hour pending queue.',
-          createdAt: now,
-        },
-      ],
-    });
-    createdNewClaim = true;
-  } else {
-    targetClaim.status = 'approved';
-    targetClaim.alerts.push({
-      type: 'claim_decision',
-      message: 'Your claim has been manually approved by admin queue action.',
-      createdAt: new Date(),
-    });
-    await targetClaim.save();
-  }
-
-  const competingClaims = await Claim.find({
-    itemId: item._id,
-    _id: { $ne: targetClaim._id },
-    status: { $in: ['pending_verification', 'claim_verified'] },
-  });
-
-  for (const competingClaim of competingClaims) {
-    competingClaim.status = 'rejected';
-    competingClaim.alerts.push({
-      type: 'claim_decision',
-      message: 'Your claim was rejected because another claim was manually approved by admin.',
-      createdAt: new Date(),
-    });
-  }
-
-  item.hasOwner = true;
-  item.ownerClaimId = targetClaim._id;
-  item.claimStatus = 'claimed';
-  item.needsOwnerReclaim = false;
-  item.claimableQueueStartedAt = null;
-  item.claimableQueueEndsAt = null;
-  item.claimableQueuePaused = false;
-  item.claimableQueueRemainingMs = null;
-
-  await Promise.all([item.save(), ...competingClaims.map((competingClaim) => competingClaim.save())]);
-
-  return {
-    item,
-    claimId: String(targetClaim._id),
-    createdNewClaim,
-  };
 }

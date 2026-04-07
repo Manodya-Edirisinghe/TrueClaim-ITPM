@@ -49,19 +49,12 @@ function formatDateTime(value: string): string {
   return date.toLocaleDateString();
 }
 
-function toDateOnly(value: string): string {
-  if (!value) return '';
-  return value.slice(0, 10);
-}
-
 function MatchItemButton({ item }: { item: ListingItem }) {
   const params = new URLSearchParams({
     itemType: item.itemType,
     title: item.itemTitle,
     category: item.itemCategory,
     location: item.location,
-    fromDate: toDateOnly(item.time),
-    toDate: toDateOnly(item.time),
   });
 
   return (
