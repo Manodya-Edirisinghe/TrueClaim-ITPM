@@ -18,6 +18,7 @@ export interface IItem extends Document {
   claimableQueueEndsAt?: Date | null;
   claimableQueuePaused: boolean;
   claimableQueueRemainingMs?: number | null;
+  ownerId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -104,6 +105,11 @@ const itemSchema = new Schema<IItem>(
     claimableQueueRemainingMs: {
       type: Number,
       default: null,
+    },
+    ownerId: {
+      type: String,
+      default: null,
+      index: true,
     },
   },
   { timestamps: true }

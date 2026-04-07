@@ -18,15 +18,21 @@ const fallbackBaseUrls = Array.from(
   new Set([configuredBaseUrl, 'http://localhost:8000/api', 'http://localhost:5000/api', 'http://localhost:5001/api'])
 );
 
-// Request interceptor – attach auth token if present
 api.interceptors.request.use((config) => {
-  // TODO: attach JWT from localStorage / cookie
-  // const token = localStorage.getItem('token');
-  // if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
+
+  if (typeof window !== 'undefined') {
+    const userId = localStorage.getItem('trueclaim_user_id');
+    if (userId) {
+      config.headers['x-user-id'] = userId;
+    }
+  }
+
   return config;
 });
 
-// Response interceptor – centralised error handling
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -61,5 +67,14 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+const SERVER_ORIGIN = configuredBaseUrl.replace(/\/api\/?$/, '');
+
+/** Resolve a server-relative image path (e.g. /uploads/x.jpg) to a full URL. */
+export function resolveImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${SERVER_ORIGIN}${path}`;
+}
 
 export default api;
