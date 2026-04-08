@@ -277,7 +277,7 @@ function LoginPage() {
       localStorage.setItem("trueclaim_user_id", user._id);
 
       if (user.role === "admin") {
-        router.push("/admin");
+        router.push("/verification");
       } else {
         router.push("/landing");
       }
