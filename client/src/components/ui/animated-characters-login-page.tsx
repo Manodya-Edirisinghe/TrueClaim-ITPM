@@ -260,11 +260,25 @@ function LoginPage() {
   const orangePos = calculatePosition(orangeRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
+
+  try {
+    // simulate login delay (you already had this)
     await new Promise((resolve) => setTimeout(resolve, 400));
-    router.push("/landing");
-  };
+
+    // 👇 SIMPLE EMAIL CHECK
+    if (email === "admin@trueclaim.com") {
+      router.push("/admin");
+    } else {
+      router.push("/landing");
+    }
+  } catch (err) {
+    setError("Something went wrong");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
@@ -732,10 +746,11 @@ function LoginPage() {
           {/* Sign Up Link */}
           <div className="text-center text-sm mt-8" style={{ color: "rgba(240,240,240,0.45)" }}>
             Don&apos;t have an account?{" "}
-            <a href="#" className="font-medium hover:underline" style={{ color: "#f0f0f0" }}>
+            <Link href="/register" className="font-medium hover:underline" style={{ color: "#f0f0f0" }}>
               Sign Up
-            </a>
+            </Link>
           </div>
+
         </div>
       </div>
     </div>

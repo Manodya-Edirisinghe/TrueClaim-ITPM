@@ -1,21 +1,17 @@
 import { Router } from 'express';
-import {
-  getAllItems,
-  getItemById,
-  createItem,
-  updateItem,
-  deleteItem,
-} from '../controllers/item.controller';
-
-// ─── Item Routes ──────────────────────────────────────────────────────────────
-// Owner: Hashini | Base: /api/items
+import { upload } from '../middlewares/upload.middleware';
+import * as itemController from '../controllers/item.controller';
 
 const router = Router();
 
-router.get('/', getAllItems);
-router.get('/:id', getItemById);
-router.post('/', createItem);
-router.put('/:id', updateItem);
-router.delete('/:id', deleteItem);
+router.post('/', upload.single('image'), itemController.createItem);
+
+router.get('/', itemController.getItems);
+
+router.get('/:id', itemController.getItem);
+
+router.put('/:id', upload.single('image'), itemController.updateItem);
+
+router.delete('/:id', itemController.deleteItem);
 
 export default router;

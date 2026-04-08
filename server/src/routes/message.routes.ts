@@ -1,17 +1,25 @@
 import { Router } from 'express';
 import {
-  getMessagesByRoom,
   sendMessage,
-  getMatchedItems,
+  getMessagesByItem,
+  getConversations,
+  getConversationById,
+  deleteConversation,
 } from '../controllers/message.controller';
 
-// ─── Message Routes ───────────────────────────────────────────────────────────
-// Owner: Manodya | Base: /api/messages
+// ─── Message Routes ──────────────────────────────────────────────────────────
+// Base: /api/messages  &  /api/conversations
 
 const router = Router();
 
-router.get('/room/:roomId', getMessagesByRoom);
+// Messages
 router.post('/send', sendMessage);
-router.get('/matches/:itemId', getMatchedItems);
+router.get('/:itemId', getMessagesByItem);
 
 export default router;
+
+// Conversation routes (mounted separately in server.ts)
+export const conversationRouter = Router();
+conversationRouter.get('/', getConversations);
+conversationRouter.get('/:conversationId', getConversationById);
+conversationRouter.delete('/:conversationId', deleteConversation);
