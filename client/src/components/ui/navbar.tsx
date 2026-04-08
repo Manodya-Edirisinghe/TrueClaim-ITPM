@@ -31,7 +31,7 @@ const TrueClaimLogo = () => (
 
 export default function Navbar() {
   const pathname = usePathname();
-  const hiddenRoutes = ['/login', '/register', '/admin'];
+  const hiddenRoutes = ['/login', '/register', '/admin', '/verification'];
   const [menuState, setMenuState] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
 
@@ -41,7 +41,7 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  if (hiddenRoutes.includes(pathname)) return null;
+  if (hiddenRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))) return null;
 
   return (
     <header>

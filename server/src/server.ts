@@ -14,8 +14,35 @@ import claimRoutes from './routes/claim.routes';
 import adminRoutes from './routes/admin.routes';
 import feedbackRoutes from './routes/feedbackRoutes';
 import authRoutes from './routes/authRoutes';
+import notificationRoutes from './routes/notification.routes';
 
 dotenv.config();
+
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+];
+
+const allowedOrigins = process.env.CLIENT_ORIGIN
+  ? process.env.CLIENT_ORIGIN.split(',').map((origin) => origin.trim())
+  : defaultAllowedOrigins;
+
+const corsOriginValidator: cors.CorsOptions['origin'] = (origin, callback) => {
+  // Allow non-browser tools like curl/Postman and same-origin server calls.
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error(`CORS blocked for origin: ${origin}`));
+};
 
 const app: Application = express();
 const httpServer = http.createServer(app);
@@ -23,7 +50,7 @@ const httpServer = http.createServer(app);
 // ─── Socket.io ───────────────────────────────────────────────────────────────
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
   },
 });
@@ -51,7 +78,7 @@ io.on('connection', (socket) => {
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:3000',
+    origin: corsOriginValidator,
     credentials: true,
   })
 );
@@ -67,6 +94,7 @@ app.use('/api/claims', claimRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/notifications', notificationRoutes);
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

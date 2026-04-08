@@ -4,8 +4,21 @@ import axios from 'axios';
 // Preconfigured Axios client pointing at the TrueClaim Express API.
 // Usage: import api from '@/lib/axios'; then api.get('/items')
 
+function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
+  }
+
+  // In browser dev, route through Next.js rewrite to avoid CORS and port drift.
+  if (typeof window !== 'undefined') {
+    return '/server-api';
+  }
+
+  return 'http://localhost:5000/api';
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api',
+  baseURL: getApiBaseUrl(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -36,12 +49,16 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('[API Error]', error.response?.data ?? error.message);
+    if (!error.response) {
+      console.warn('[API Error] Network request failed. Check API server availability and NEXT_PUBLIC_API_URL.');
+    } else {
+      console.error('[API Error]', error.response.data ?? error.message);
+    }
     return Promise.reject(error);
   }
 );
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api';
+const API_BASE = getApiBaseUrl();
 const SERVER_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 /** Resolve a server-relative image path (e.g. /uploads/x.jpg) to a full URL. */

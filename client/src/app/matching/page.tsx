@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Sparkles } from 'lucide-react';
 import { getMatchLevel, matchItems, type MatchResult, type MatchableItem } from '@/lib/matching-utils';
-import { resolveImageUrl } from '@/lib/axios';
+import api, { resolveImageUrl } from '@/lib/axios';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUserId } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -130,12 +130,7 @@ export default function MatchingPage() {
         setIsLoadingItems(true);
         setItemsError(null);
 
-        const response = await fetch('http://localhost:5000/api/items');
-        if (!response.ok) {
-          throw new Error(`Failed to load items (${response.status})`);
-        }
-
-        const data = await response.json();
+        const { data } = await api.get('/items');
         const apiItems: ApiItem[] = Array.isArray(data?.items) ? data.items : [];
 
         const mappedItems: MatchItem[] = apiItems.map((entry) => ({

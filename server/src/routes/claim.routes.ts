@@ -4,6 +4,7 @@ import {
   getClaimById,
   createClaim,
   verifyClaim,
+  updateClaimMeeting,
   resolveClaim,
 } from '../controllers/claim.controller';
 
@@ -16,6 +17,7 @@ router.get('/', getAllClaims);
 router.get('/:id', getClaimById);
 router.post('/', createClaim);
 router.post('/:id/verify', verifyClaim);
+router.patch('/:id/meeting', updateClaimMeeting);
 router.patch('/:id/resolve', resolveClaim);
 
 export default router;
