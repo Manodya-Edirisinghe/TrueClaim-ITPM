@@ -16,7 +16,6 @@ const menuItems = [
   { name: 'Match Items',  href: '/matching' },
   { name: 'Feedback',     href: '/feedback' },
   { name: 'Messages',     href: '/messages' },
-  { name: 'Universities', href: '/landing#universities' },
   { name: 'Contact',      href: '/landing#contact' },
 ];
 
@@ -104,7 +103,7 @@ export default function Navbar() {
               <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
                 <Button asChild variant="outline" size="sm"
                   className={cn('border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white', isScrolled && 'lg:hidden')}>
-                  <Link href="/login"><span>Sign In</span></Link>
+                  <Link href="/login"><span>Sign Out</span></Link>
                 </Button>
                 <Button asChild size="sm"
                   className={cn('text-white font-semibold', isScrolled && 'lg:hidden')}

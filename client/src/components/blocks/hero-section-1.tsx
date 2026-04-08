@@ -33,7 +33,6 @@ const transitionVariants = {
 const menuItems = [
   { name: 'Features',     href: '#features' },
   { name: 'Match Items',  href: '/match-items' },
-  { name: 'Universities', href: '#universities' },
   { name: 'Contact',      href: '#contact' },
 ];
 

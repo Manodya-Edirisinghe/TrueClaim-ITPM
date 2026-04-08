@@ -52,7 +52,26 @@ api.interceptors.response.use(
     if (!error.response) {
       console.warn('[API Error] Network request failed. Check API server availability and NEXT_PUBLIC_API_URL.');
     } else {
-      console.error('[API Error]', error.response.data ?? error.message);
+      const status = Number(error.response.status ?? 0);
+      const data = error.response.data;
+      const hasUsefulBody =
+        typeof data === 'string'
+          ? data.trim().length > 0
+          : data && (Array.isArray(data) ? data.length > 0 : Object.keys(data).length > 0);
+      const payload = hasUsefulBody ? data : error.message;
+
+      // 4xx responses are often expected (e.g., invalid credentials).
+      if (status >= 400 && status < 500) {
+        console.warn('[API Client Error]', payload);
+      } else {
+        // In the browser, avoid console.error to prevent Next.js console error overlay
+        // for handled API failures. Keep hard errors on the server side.
+        if (typeof window !== 'undefined') {
+          console.warn('[API Server Error]', payload);
+        } else {
+          console.error('[API Server Error]', payload);
+        }
+      }
     }
     return Promise.reject(error);
   }
