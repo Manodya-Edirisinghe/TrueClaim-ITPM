@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";
+import api from "@/lib/axios";
 
 interface PupilProps {
   size?: number;
@@ -262,13 +263,30 @@ function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
 
     try {
-      // simulate login delay (you already had this)
+      const res = await api.post("/auth/login", {
+        universityEmail: email,
+        password,
+      });
+
+      const { token, user } = res.data;
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("trueclaim_user_id", user._id);
+
+      if (user.role === "admin") {
+        router.push("/verification");
+      } else {
+        router.push("/landing");
+      }
+    } catch (err: any) {
+      // Keep support for local demo credentials if backend login fails.
       await new Promise((resolve) => setTimeout(resolve, 400));
+
       const normalizedEmail = email.trim().toLowerCase();
       const normalizedPassword = password.trim();
-
       const isVerificationUser =
         normalizedEmail === "verification@trueclaim.com" &&
         normalizedPassword === "verification123";
@@ -277,10 +295,8 @@ function LoginPage() {
       if (isVerificationUser || isAdminUser) {
         router.push("/verification");
       } else {
-        router.push("/landing");
+        setError(err?.response?.data?.message ?? "Invalid credentials");
       }
-    } catch (err) {
-      setError("Something went wrong");
     } finally {
       setIsLoading(false);
     }

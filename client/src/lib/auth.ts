@@ -13,17 +13,8 @@ const STORAGE_KEY = 'trueclaim_user_id';
  * Creates and persists a temporary one if none exists yet.
  */
 export function getCurrentUserId(): string {
-  // FUTURE UPGRADE: Replace this block with real auth, e.g.:
-  // return getSessionUser().id;
-
   if (typeof window === 'undefined') return '';
-
-  let userId = localStorage.getItem(STORAGE_KEY);
-  if (!userId) {
-    userId = `user_${crypto.randomUUID().slice(0, 8)}`;
-    localStorage.setItem(STORAGE_KEY, userId);
-  }
-  return userId;
+  return localStorage.getItem(STORAGE_KEY) ?? '';
 }
 
 /**
