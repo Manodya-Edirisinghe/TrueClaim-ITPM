@@ -121,12 +121,12 @@ const HeroHeader = () => {
                 <Button asChild size="sm"
                   className={cn('text-white font-semibold', isScrolled && 'lg:hidden')}
                   style={{ background: blue }}>
-                  <Link href="/login"><span>Get Started</span></Link>
+                  <Link href="/register"><span>Get Started</span></Link>
                 </Button>
                 <Button asChild size="sm"
                   className={cn('text-white font-semibold', isScrolled ? 'lg:inline-flex' : 'hidden')}
                   style={{ background: blue }}>
-                  <Link href="/login"><span>Get Started →</span></Link>
+                  <Link href="/register"><span>Get Started →</span></Link>
                 </Button>
               </div>
             </div>
