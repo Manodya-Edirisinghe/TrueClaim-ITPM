@@ -7,6 +7,7 @@ import { Eye, EyeOff, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import api from "@/lib/axios";
 
 const faculties = [
   "Faculty of IT",
@@ -51,11 +52,10 @@ export default function RegisterPage() {
     setIsLoading(true);
     setError("");
     try {
-      // TODO: wire up to API
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await api.post("/auth/register", form);
       router.push("/login");
-    } catch {
-      setError("Registration failed. Please try again.");
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? "Registration failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
