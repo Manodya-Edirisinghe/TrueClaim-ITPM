@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";
+import api from "@/lib/axios";
 
 interface PupilProps {
   size?: number;
@@ -260,25 +261,32 @@ function LoginPage() {
   const orangePos = calculatePosition(orangeRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
-  try {
-    // simulate login delay (you already had this)
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      const res = await api.post("/auth/login", {
+        universityEmail: email,
+        password,
+      });
 
-    // 👇 SIMPLE EMAIL CHECK
-    if (email === "admin@trueclaim.com") {
-      router.push("/admin");
-    } else {
-      router.push("/landing");
+      const { token, user } = res.data;
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("trueclaim_user_id", user._id);
+
+      if (user.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/landing");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? "Invalid credentials");
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    setError("Something went wrong");
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
