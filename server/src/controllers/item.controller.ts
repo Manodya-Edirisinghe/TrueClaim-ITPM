@@ -93,6 +93,23 @@ export async function updateItem(
   next: NextFunction
 ): Promise<void> {
   try {
+    const userId = getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const existingItem = await itemService.getItemById(req.params.id);
+    if (!existingItem) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    if (!existingItem.ownerId || existingItem.ownerId !== userId) {
+      res.status(403).json({ error: 'Forbidden: only the owner can update this item' });
+      return;
+    }
+
     const { itemTitle, itemCategory, description, time, location, contactNumber } = req.body;
 
     const imageBuffer = req.file?.buffer;
@@ -127,6 +144,23 @@ export async function deleteItem(
   next: NextFunction
 ): Promise<void> {
   try {
+    const userId = getAuthenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const existingItem = await itemService.getItemById(req.params.id);
+    if (!existingItem) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    if (!existingItem.ownerId || existingItem.ownerId !== userId) {
+      res.status(403).json({ error: 'Forbidden: only the owner can delete this item' });
+      return;
+    }
+
     const deleted = await itemService.deleteItem(req.params.id);
 
     if (!deleted) {

@@ -51,6 +51,12 @@ export const sendMessage = async (
       text.trim()
     );
 
+    const isParticipant = conversation.participants.includes(senderId);
+    if (!isParticipant) {
+      res.status(403).json({ error: 'Forbidden: user is not part of this conversation' });
+      return;
+    }
+
     res.status(201).json(conversation);
   } catch (err) {
     next(err);

@@ -247,9 +247,12 @@ export default function MatchingPage() {
   const onMessageOwner = () => {
     if (!selectedItem) return;
 
-    const receiverId = selectedItem.ownerId ?? `owner_${selectedItem.id}`;
+    const receiverId = selectedItem.ownerId;
     const currentUserId = getCurrentUserId();
-    if (!receiverId) return;
+    if (!receiverId) {
+      toast.error('Item owner is unavailable for messaging.');
+      return;
+    }
     if (receiverId === currentUserId) {
       toast.info('This item is submitted by you');
       return;

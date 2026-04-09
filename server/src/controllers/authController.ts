@@ -3,6 +3,12 @@ import User from '../models/User';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+type AuthenticatedRequest = Request & {
+  user?: {
+    id: string;
+  };
+};
+
 // ─── REGISTER ─────────────────────────────────────────
 export const registerUser = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -75,6 +81,27 @@ export const loginUser = async (req: Request, res: Response): Promise<Response> 
       user
     });
 
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// ─── CURRENT USER (JWT) ─────────────────────────────────
+export const getCurrentUser = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ user });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

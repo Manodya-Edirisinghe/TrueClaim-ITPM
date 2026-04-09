@@ -31,9 +31,7 @@ export default function MessagesPage() {
   // ── Fetch all conversations ──────────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
     try {
-      const { data } = await api.get('/conversations', {
-        headers: { 'x-user-id': currentUserId },
-      });
+      const { data } = await api.get('/conversations');
       setConversations(data);
     } catch (err) {
       console.error('Failed to fetch conversations', err);
@@ -46,9 +44,7 @@ export default function MessagesPage() {
   const fetchItemMessages = useCallback(
     async (itemId: string) => {
       try {
-        const { data } = await api.get(`/messages/${itemId}`, {
-          headers: { 'x-user-id': currentUserId },
-        });
+        const { data } = await api.get(`/messages/${itemId}`);
         setMessages(data.messages ?? []);
         return data as ConversationSummary;
       } catch (err) {
@@ -137,11 +133,11 @@ export default function MessagesPage() {
       activeConv.participants.find((p) => p !== currentUserId) ?? '';
 
     try {
-      const { data } = await api.post(
-        '/messages/send',
-        { itemId: activeConv.itemId, receiverId, text },
-        { headers: { 'x-user-id': currentUserId } }
-      );
+      const { data } = await api.post('/messages/send', {
+        itemId: activeConv.itemId,
+        receiverId,
+        text,
+      });
 
       setMessages(data.messages ?? []);
       setActiveConv(data);
@@ -162,9 +158,7 @@ export default function MessagesPage() {
   // ── Delete a conversation ──────────────────────────────────────────────
   const handleDelete = async (conversationId: string) => {
     try {
-      await api.delete(`/conversations/${conversationId}`, {
-        headers: { 'x-user-id': currentUserId },
-      });
+      await api.delete(`/conversations/${conversationId}`);
 
       if (activeConv?._id === conversationId) {
         setActiveConv(null);

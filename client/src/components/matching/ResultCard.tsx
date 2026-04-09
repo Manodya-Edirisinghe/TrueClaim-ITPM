@@ -12,7 +12,7 @@ type MatchResult = {
   date: string;
   image: string;
   matchScore: number;
-  // Owner ID for messaging — falls back to the item ID as a pseudo-owner
+  // Owner ID for messaging.
   ownerId?: string;
 };
 
@@ -25,10 +25,9 @@ export default function ResultCard({ item, isHighlighted = false }: ResultCardPr
   const router = useRouter();
 
   const handleMessageOwner = () => {
-    // Use the ownerId if available, otherwise use the item's id as a
-    // deterministic pseudo-owner so conversations are still scoped per item.
-    const receiverId = item.ownerId ?? `owner_${item.id}`;
+    const receiverId = item.ownerId;
     const currentUserId = getCurrentUserId();
+    if (!receiverId) return;
 
     // Don't let a user message themselves
     if (receiverId === currentUserId) return;
