@@ -19,7 +19,7 @@ export default function Footer() {
           {['Privacy', 'Terms', 'Contact'].map((item) => (
             <a
               key={item}
-              href="#"
+              href={item === 'Contact' ? '#contact' : '#'}
               className="text-xs text-white/25 transition hover:text-white/60"
             >
               {item}
