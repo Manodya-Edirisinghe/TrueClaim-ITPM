@@ -21,6 +21,8 @@ const ITEM_CATEGORIES = [
   'Other',
 ];
 
+const LISTING_FALLBACK_IMAGE = '/placeholder.png';
+
 type ListingItem = {
   _id: string;
   itemType: 'lost' | 'found';
@@ -123,17 +125,21 @@ function ListingCard({
   deleting: boolean;
   editing: boolean;
 }) {
+  const listingImageSrc = resolveImageUrl(item.imageUrl) ?? LISTING_FALLBACK_IMAGE;
+
   return (
     <article className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-sm">
       <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
         <div className="overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-black/20">
-          {item.imageUrl ? (
-            <img src={resolveImageUrl(item.imageUrl) ?? ''} alt={item.itemTitle} className="h-36 w-full object-cover" />
-          ) : (
-            <div className="flex h-36 items-center justify-center text-xs text-muted-foreground">
-              No image
-            </div>
-          )}
+          <img
+            src={listingImageSrc}
+            alt={item.itemTitle}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = '/placeholder.png';
+            }}
+            className="h-36 w-full object-cover"
+          />
         </div>
 
         <div className="space-y-2">

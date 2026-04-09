@@ -40,7 +40,7 @@ type ApiItem = {
   ownerId?: string;
 };
 
-const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim-match/1200/800';
+const FALLBACK_IMAGE = '/placeholder.png';
 
 function getCounterpartType(type: 'lost' | 'found'): 'lost' | 'found' {
   return type === 'lost' ? 'found' : 'lost';
@@ -435,7 +435,15 @@ export default function MatchingPage() {
                       className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-white/[0.06]"
                     >
                       <div className="relative">
-                        <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = '/placeholder.png';
+                          }}
+                          className="h-44 w-full object-cover"
+                        />
                         {hasSearchedWithImage ? (
                           <span className="absolute left-3 top-3 rounded-full border border-cyan-300/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
                             AI Suggested
@@ -500,6 +508,10 @@ export default function MatchingPage() {
               <img
                 src={selectedItem.image}
                 alt={selectedItem.title}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/placeholder.png';
+                }}
                 className="h-64 w-full object-cover"
               />
               <button

@@ -78,13 +78,14 @@ api.interceptors.response.use(
 );
 
 const API_BASE = getApiBaseUrl();
-const SERVER_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+const SERVER_ORIGIN = 'http://localhost:5000';
 
 /** Resolve a server-relative image path (e.g. /uploads/x.jpg) to a full URL. */
 export function resolveImageUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  return `${SERVER_ORIGIN}${path}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${SERVER_ORIGIN}${normalizedPath}`;
 }
 
 export default api;

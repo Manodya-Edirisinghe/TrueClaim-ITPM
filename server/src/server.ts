@@ -1,6 +1,5 @@
 import express, { Application } from 'express';
 import http from 'http';
-import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
@@ -84,7 +83,7 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static('uploads'));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/items', itemRoutes);

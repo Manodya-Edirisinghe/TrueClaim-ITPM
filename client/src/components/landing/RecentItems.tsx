@@ -19,7 +19,7 @@ type ApiItem = {
   ownerId?: string;
 };
 
-const FALLBACK_IMAGE = 'https://picsum.photos/seed/trueclaim/400/300';
+const FALLBACK_IMAGE = '/placeholder.png';
 
 function toDateOnly(value: string): string {
   if (!value) return '';

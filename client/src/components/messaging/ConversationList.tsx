@@ -2,15 +2,7 @@
 
 import { Trash2, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-
-const SERVER_ORIGIN =
-  (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-
-function resolveImg(src?: string) {
-  if (!src) return null;
-  if (src.startsWith('http')) return src;
-  return `${SERVER_ORIGIN}${src}`;
-}
+import { resolveImageUrl } from '@/lib/axios';
 
 export type ConversationSummary = {
   _id: string;
@@ -54,7 +46,7 @@ export default function ConversationList({
         const lastMsg = conv.messages[conv.messages.length - 1];
         const otherUser = conv.participants.find((p) => p !== currentUserId) ?? 'Unknown';
         const isActive = conv._id === activeId;
-        const imgSrc = resolveImg(conv.itemImage);
+        const imgSrc = resolveImageUrl(conv.itemImage);
 
         return (
           <li key={conv._id} className="group relative">

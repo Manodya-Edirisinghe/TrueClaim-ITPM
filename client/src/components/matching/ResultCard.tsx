@@ -45,7 +45,15 @@ export default function ResultCard({ item, isHighlighted = false }: ResultCardPr
       }`}
     >
       <div className="relative">
-        <img src={item.image} alt={item.title} className="h-44 w-full object-cover" />
+        <img
+          src={item.image}
+          alt={item.title}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = '/placeholder.png';
+          }}
+          className="h-44 w-full object-cover"
+        />
         <div className="absolute right-3 top-3 rounded-full border border-blue-300/50 bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-100">
           {item.matchScore}% Match
         </div>

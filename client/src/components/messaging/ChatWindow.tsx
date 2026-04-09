@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { resolveImageUrl } from '@/lib/axios';
 
 export type Message = {
   _id?: string;
@@ -20,15 +21,6 @@ type Props = {
   itemCategory?: string;
   otherUserLabel: string;
 };
-
-const SERVER_ORIGIN =
-  (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api').replace(/\/api\/?$/, '');
-
-function resolveImg(src?: string) {
-  if (!src) return null;
-  if (src.startsWith('http')) return src;
-  return `${SERVER_ORIGIN}${src}`;
-}
 
 export default function ChatWindow({
   messages,
@@ -54,7 +46,7 @@ export default function ChatWindow({
     setText('');
   };
 
-  const imgSrc = resolveImg(itemImage);
+  const imgSrc = resolveImageUrl(itemImage);
 
   return (
     <div className="flex h-full flex-col">
