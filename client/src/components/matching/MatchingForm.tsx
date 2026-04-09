@@ -1,129 +1,164 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
-import AdvancedFilters from './AdvancedFilters';
+import { ChevronDown, Sparkles } from 'lucide-react';
 
-export type MatchSearchFilters = {
-  title: string;
-  keywords: string;
+export type MatchingFilters = {
+  keyword: string;
   category: string;
   location: string;
 };
 
 type MatchingFormProps = {
+  filters: MatchingFilters;
   categories: string[];
+  isSearching: boolean;
+  showAdvanced: boolean;
+  isImageSelected: boolean;
   imagePreviewUrl: string | null;
-  onImageSelect: (file: File | null) => void;
-  initialFilters?: Partial<MatchSearchFilters>;
-  onSearch: (filters: MatchSearchFilters) => void;
+  onFiltersChange: (next: MatchingFilters) => void;
+  onSearch: () => void;
+  onClear: () => void;
+  onToggleAdvanced: () => void;
+  onImageSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onClearImage: () => void;
 };
 
 export default function MatchingForm({
+  filters,
   categories,
+  isSearching,
+  showAdvanced,
+  isImageSelected,
   imagePreviewUrl,
-  onImageSelect,
-  initialFilters,
+  onFiltersChange,
   onSearch,
+  onClear,
+  onToggleAdvanced,
+  onImageSelect,
+  onClearImage,
 }: MatchingFormProps) {
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [title, setTitle] = useState(initialFilters?.title ?? '');
-  const [keywords, setKeywords] = useState(initialFilters?.keywords ?? '');
-  const [category, setCategory] = useState(initialFilters?.category || 'All');
-  const [location, setLocation] = useState(initialFilters?.location ?? '');
-  const [titleError, setTitleError] = useState('');
-
-  const normalizedCategories = useMemo(() => ['All', ...categories], [categories]);
-
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!title.trim()) {
-      setTitleError('Item title is required.');
-      return;
-    }
-    setTitleError('');
-    onSearch({ title, keywords, category, location });
+    onSearch();
   };
 
   return (
-    <form onSubmit={onSubmit} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-      {/* Main filters — horizontal row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-white/70">
-            Item Title <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              if (titleError) setTitleError('');
-            }}
-            placeholder="e.g., Black Wallet"
-            className={`w-full rounded-lg border bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400 ${
-              titleError ? 'border-red-500' : 'border-white/15'
-            }`}
-          />
-          {titleError && (
-            <p className="mt-1 text-xs text-red-400">{titleError}</p>
-          )}
-        </div>
+    <form onSubmit={onSubmit} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-lg shadow-black/25 md:p-5">
+      <h2 className="mb-3 text-lg font-semibold text-white">Search Filters</h2>
 
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-white/70">Keywords</label>
-          <input
-            type="text"
-            value={keywords}
-            onChange={(e) => setKeywords(e.target.value)}
-            placeholder="e.g., black leather library"
-            className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
-          />
-          <p className="mt-1 text-[10px] text-white/40">Matches across title, description, category & location</p>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-white/70">Category</label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-400"
-          >
-            {normalizedCategories.map((entry) => (
-              <option key={entry} value={entry} className="text-black">
-                {entry}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-rows-[auto_1fr] gap-1.5">
-          <label className="block text-xs font-medium text-white/70">Location</label>
-          <div className="flex gap-2">
+      <div className="space-y-3.5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/80">Keyword</label>
             <input
               type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g., Library"
+              value={filters.keyword}
+              onChange={(event) => onFiltersChange({ ...filters, keyword: event.target.value })}
+              placeholder="e.g., laptop bag"
               className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
             />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/80">Category</label>
+            <select
+              value={filters.category}
+              onChange={(event) => onFiltersChange({ ...filters, category: event.target.value })}
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-400"
+            >
+              {categories.map((category) => (
+                <option key={category} value={category} className="text-black">
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-white/80">Location</label>
+            <input
+              type="text"
+              value={filters.location}
+              onChange={(event) => onFiltersChange({ ...filters, location: event.target.value })}
+              placeholder="e.g., main library"
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:w-[240px]">
             <button
               type="submit"
-              className="shrink-0 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+              disabled={isSearching}
+              className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Search
+              {isSearching ? 'Searching...' : 'Search'}
+            </button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+            >
+              Clear
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Advanced / AI section */}
-      <div className="mt-4">
-        <AdvancedFilters
-          isOpen={showAdvancedFilters}
-          onToggle={() => setShowAdvancedFilters((prev) => !prev)}
-          imagePreviewUrl={imagePreviewUrl}
-          onImageSelect={onImageSelect}
-        />
+        <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+          <button
+            type="button"
+            onClick={onToggleAdvanced}
+            className="flex w-full items-center justify-between px-4 py-3 text-left"
+          >
+            <span className="text-sm font-semibold text-white">Advanced Filters</span>
+            <ChevronDown
+              className={`h-4 w-4 text-white/70 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          <div
+            className={`overflow-hidden border-t border-white/10 transition-all duration-300 ${
+              showAdvanced ? 'max-h-72 opacity-100' : 'max-h-0 opacity-0'
+            }`}
+          >
+            <div className="space-y-3 px-4 py-3.5">
+              <label className="block text-sm font-medium text-white/80">Upload Image</label>
+              <input
+                type="file"
+                accept="image/png, image/jpeg, image/jpg"
+                onChange={onImageSelect}
+                className="block w-full rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-blue-500/20 file:px-3 file:py-1 file:text-sm file:font-medium file:text-blue-200"
+              />
+
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200 animate-[pulse_3.2s_ease-in-out_infinite] opacity-90">
+                <Sparkles className="h-3.5 w-3.5" />
+                Powered by AI
+              </div>
+
+              {imagePreviewUrl ? (
+                <div className="space-y-2">
+                  <img
+                    src={imagePreviewUrl}
+                    alt="Uploaded reference"
+                    className="h-36 w-full rounded-lg object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={onClearImage}
+                    className="inline-flex rounded-md border border-red-300/40 bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-100 transition hover:bg-red-500/25"
+                  >
+                    Remove image
+                  </button>
+                </div>
+              ) : null}
+
+              {isImageSelected ? (
+                <p className="text-xs text-cyan-200/80">Image selected for AI-assisted search.</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
       </div>
     </form>
   );
