@@ -1,14 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
 import * as messageService from '../services/message.service';
 
+type AuthenticatedRequest = Request & {
+  user?: {
+    id: string;
+  };
+};
+
 // ─── Message Controller ──────────────────────────────────────────────────────
-// The controller extracts senderId from the request header `x-user-id`.
-// FUTURE UPGRADE: Replace `req.headers['x-user-id']` with `req.user.id`
-// from your JWT/session middleware. The service layer needs zero changes.
+// The controller now reads user identity from req.user.id, which is set by
+// JWT middleware after verifying Authorization: Bearer <token>.
 
 /** Helper: read the current user ID from the request */
 function getUserId(req: Request): string | null {
-  return (req.headers['x-user-id'] as string) ?? null;
+  return (req as AuthenticatedRequest).user?.id ?? null;
 }
 
 /**
@@ -23,7 +28,7 @@ export const sendMessage = async (
   try {
     const senderId = getUserId(req);
     if (!senderId) {
-      res.status(401).json({ error: 'Missing user identity (x-user-id header)' });
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -64,7 +69,7 @@ export const getMessagesByItem = async (
   try {
     const senderId = getUserId(req);
     if (!senderId) {
-      res.status(401).json({ error: 'Missing user identity (x-user-id header)' });
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -89,7 +94,7 @@ export const getConversations = async (
   try {
     const userId = getUserId(req);
     if (!userId) {
-      res.status(401).json({ error: 'Missing user identity (x-user-id header)' });
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -112,7 +117,7 @@ export const getConversationById = async (
   try {
     const userId = getUserId(req);
     if (!userId) {
-      res.status(401).json({ error: 'Missing user identity (x-user-id header)' });
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -144,7 +149,7 @@ export const deleteConversation = async (
   try {
     const userId = getUserId(req);
     if (!userId) {
-      res.status(401).json({ error: 'Missing user identity (x-user-id header)' });
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 

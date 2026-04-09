@@ -1,6 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import * as itemService from '../services/item.service';
 
+type AuthenticatedRequest = Request & {
+  user?: {
+    id: string;
+  };
+};
+
+function getAuthenticatedUserId(req: Request): string | undefined {
+  return (req as AuthenticatedRequest).user?.id;
+}
+
 // POST /api/items
 export async function createItem(
   req: Request,
@@ -13,7 +23,7 @@ export async function createItem(
 
     const imageBuffer = req.file?.buffer;
     const originalName = req.file?.originalname;
-    const ownerId = req.headers['x-user-id'] as string | undefined;
+    const ownerId = getAuthenticatedUserId(req);
 
     const item = await itemService.createItem({
       itemType,
