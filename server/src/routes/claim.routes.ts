@@ -6,6 +6,7 @@ import {
   verifyClaim,
   updateClaimMeeting,
   resolveClaim,
+  deleteClaim,
 } from '../controllers/claim.controller';
 
 // ─── Claim Routes ─────────────────────────────────────────────────────────────
@@ -19,5 +20,6 @@ router.post('/', createClaim);
 router.post('/:id/verify', verifyClaim);
 router.patch('/:id/meeting', updateClaimMeeting);
 router.patch('/:id/resolve', resolveClaim);
+router.delete('/:id', deleteClaim);
 
 export default router;

@@ -386,3 +386,51 @@ export const resolveClaim = async (
     next(err);
   }
 };
+
+export const deleteClaim = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const claim = await Claim.findById(id);
+    if (!claim) {
+      res.status(404).json({ error: 'Claim not found.' });
+      return;
+    }
+
+    const wasApproved = claim.status === 'approved';
+    const claimId = String(claim._id);
+    const itemId = claim.itemId;
+
+    await ClaimMeeting.deleteOne({ claimId: claim._id });
+    await claim.deleteOne();
+
+    if (wasApproved) {
+      const item = await Item.findById(itemId);
+      if (item && item.ownerClaimId && String(item.ownerClaimId) === claimId) {
+        const replacementApprovedClaim = await Claim.findOne({ itemId, status: 'approved' }).sort({ updatedAt: -1 });
+
+        if (replacementApprovedClaim) {
+          item.hasOwner = true;
+          item.ownerClaimId = replacementApprovedClaim._id;
+          item.claimStatus = 'claimed';
+          item.needsOwnerReclaim = false;
+        } else {
+          item.hasOwner = false;
+          item.ownerClaimId = null;
+          item.claimStatus = 'open';
+          item.needsOwnerReclaim = true;
+        }
+
+        await item.save();
+      }
+    }
+
+    res.json({ message: 'Claim removed successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
