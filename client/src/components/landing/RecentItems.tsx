@@ -81,17 +81,16 @@ export default function RecentItems() {
               key={item._id}
               item={{
                 id: item._id,
-                itemType: item.itemType,
                 title: item.itemTitle,
                 category: item.itemCategory,
-                description: item.description,
                 location: item.location,
                 date: toDateOnly(item.time),
-                contactNumber: item.contactNumber,
                 image: resolveImageUrl(item.imageUrl) ?? FALLBACK_IMAGE,
                 matchScore: 0,
                 ownerId: item.ownerId,
               }}
+              claimHref={`/matching?claimItemId=${encodeURIComponent(item._id)}`}
+              claimLabel="Claim"
             />
           ))}
         </div>
