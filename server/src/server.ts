@@ -3,6 +3,8 @@ import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import { errorHandler } from './middlewares/error.middleware';
 
@@ -46,6 +48,8 @@ const corsOriginValidator: cors.CorsOptions['origin'] = (origin, callback) => {
 
 const app: Application = express();
 const httpServer = http.createServer(app);
+const uploadsDir = path.resolve(__dirname, '../uploads');
+const placeholderImagePath = path.resolve(__dirname, '../../client/public/placeholder.png');
 
 // ─── Socket.io ───────────────────────────────────────────────────────────────
 const io = new SocketIOServer(httpServer, {
@@ -84,6 +88,16 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Backward compatibility for existing DB records that still reference /uploads/* URLs.
+app.use('/uploads', express.static(uploadsDir));
+app.get('/uploads/:fileName', (_req, res) => {
+  if (fs.existsSync(placeholderImagePath)) {
+    res.sendFile(placeholderImagePath);
+    return;
+  }
+
+  res.status(404).json({ error: 'Image not found' });
+});
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/items', itemRoutes);
@@ -105,22 +119,47 @@ app.use(errorHandler);
 
 // ─── Database Connection ──────────────────────────────────────────────────────
 const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/trueclaim';
+const ENABLE_MEMORY_FALLBACK =
+  String(process.env.ENABLE_MEMORY_FALLBACK ?? 'false').toLowerCase() === 'true';
+
+async function wait(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function connectDB(): Promise<void> {
-  try {
-    await mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
-    console.log('[MongoDB] Connected successfully to Atlas');
-  } catch (error) {
-    console.warn('[MongoDB] Atlas unavailable, starting in-memory database...');
+  const uri = MONGO_URI.trim();
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      const { MongoMemoryServer } = await import('mongodb-memory-server');
-      const mongod = await MongoMemoryServer.create();
-      await mongoose.connect(mongod.getUri());
-      console.log('[MongoDB] Connected to in-memory database');
-    } catch (memError) {
-      console.error('[MongoDB] All connections failed:', memError);
-      process.exit(1);
+      await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
+      console.log('[MongoDB] Connected successfully to primary database');
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[MongoDB] Primary DB connect attempt ${attempt}/3 failed: ${message}`);
+
+      if (attempt < 3) {
+        await wait(1000 * attempt);
+      }
     }
+  }
+
+  if (!ENABLE_MEMORY_FALLBACK) {
+    console.error(
+      '[MongoDB] Could not connect to primary DB. Set ENABLE_MEMORY_FALLBACK=true for temporary in-memory mode.'
+    );
+    process.exit(1);
+  }
+
+  console.warn('[MongoDB] Falling back to in-memory database (ENABLE_MEMORY_FALLBACK=true)...');
+  try {
+    const { MongoMemoryServer } = await import('mongodb-memory-server');
+    const mongod = await MongoMemoryServer.create();
+    await mongoose.connect(mongod.getUri());
+    console.log('[MongoDB] Connected to in-memory database');
+  } catch (memError) {
+    console.error('[MongoDB] In-memory fallback failed:', memError);
+    process.exit(1);
   }
 }
 

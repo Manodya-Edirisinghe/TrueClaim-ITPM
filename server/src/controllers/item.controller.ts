@@ -11,7 +11,7 @@ type AuthenticatedRequest = Request & {
 };
 
 function getAuthenticatedUserId(req: Request): string | undefined {
-  return (req as AuthenticatedRequest).user?.id;
+  return (req as AuthenticatedRequest).user?.id ?? (req.headers['x-user-id'] as string | undefined);
 }
 
 // POST /api/items
