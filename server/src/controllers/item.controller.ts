@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import * as itemService from '../services/item.service';
 import { Claim } from '../models/Claim';
 import { Item } from '../models/item.model';
+import { deleteImageFromCloudinary, uploadImageToCloudinary } from '../utils/cloudinary.util';
 
 type AuthenticatedRequest = Request & {
   user?: {
@@ -24,7 +25,14 @@ export async function createItem(
     const { itemType, itemTitle, itemCategory, description, time, location, contactNumber } =
       req.body;
 
-    const imageUrl = req.file?.path;
+    let imageUrl: string | undefined;
+    let imagePublicId: string | undefined;
+
+    if (req.file?.buffer) {
+      const uploadResult = await uploadImageToCloudinary(req.file.buffer, 'trueclaim/items');
+      imageUrl = uploadResult.url;
+      imagePublicId = uploadResult.publicId;
+    }
     const ownerId = getAuthenticatedUserId(req);
 
     const item = await itemService.createItem({
@@ -36,6 +44,7 @@ export async function createItem(
       location,
       contactNumber,
       imageUrl,
+      imagePublicId,
       ownerId,
     });
 
@@ -120,7 +129,18 @@ export async function updateItem(
 
     const { itemTitle, itemCategory, description, time, location, contactNumber } = req.body;
 
-    const imageUrl = req.file?.path;
+    let imageUrl: string | undefined;
+    let imagePublicId: string | undefined;
+
+    if (req.file?.buffer) {
+      const uploadResult = await uploadImageToCloudinary(req.file.buffer, 'trueclaim/items');
+      imageUrl = uploadResult.url;
+      imagePublicId = uploadResult.publicId;
+
+      if (existingItem.imagePublicId) {
+        await deleteImageFromCloudinary(existingItem.imagePublicId);
+      }
+    }
 
     const item = await itemService.updateItem(req.params.id, {
       itemTitle,
@@ -130,6 +150,7 @@ export async function updateItem(
       location,
       contactNumber,
       imageUrl,
+      imagePublicId,
     });
 
     if (!item) {

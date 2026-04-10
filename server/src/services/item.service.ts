@@ -12,6 +12,7 @@ export interface CreateItemDTO {
   location: string;
   contactNumber: string;
   imageUrl?: string;
+  imagePublicId?: string;
   ownerId?: string;
 }
 
@@ -23,6 +24,7 @@ export interface UpdateItemDTO {
   location: string;
   contactNumber: string;
   imageUrl?: string;
+  imagePublicId?: string;
 }
 
 function validatePayload(dto: CreateItemDTO): void {
@@ -75,6 +77,7 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
     location: dto.location,
     contactNumber: dto.contactNumber,
     imageUrl: dto.imageUrl,
+    imagePublicId: dto.imagePublicId,
     ownerId: dto.ownerId,
   });
 
@@ -138,6 +141,7 @@ export async function updateItem(id: string, dto: UpdateItemDTO): Promise<IItem 
 
   if (dto.imageUrl) {
     item.imageUrl = dto.imageUrl;
+    item.imagePublicId = dto.imagePublicId;
   }
 
   item.itemTitle = dto.itemTitle;
