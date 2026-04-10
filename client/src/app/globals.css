@@ -63,6 +63,31 @@
   color: #111827;
 }
 
+/* Modern themed scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2d8ff7 #060d1b;
+}
+
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+*::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #060d1b 0%, #071327 100%);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid #08162c;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #53a2ff 0%, #0a66c2 55%, #0a4f96 100%);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #7bb8ff 0%, #1f7ddf 55%, #0a66c2 100%);
+}
+
 /* Make native date/time picker icons visible on dark inputs */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator,
@@ -165,7 +190,38 @@ input.tc-light-datetime[type="datetime-local"]::-webkit-calendar-picker-indicato
   color: #334155 !important;
 }
 
+.tc-footer-glow {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(42px);
+  opacity: 0.32;
+  animation: tcFooterGlowPulse 7s ease-in-out infinite;
+}
+
+.tc-footer-glow-left {
+  left: -120px;
+  top: -50px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle at center, rgba(56, 189, 248, 0.65) 0%, rgba(56, 189, 248, 0) 72%);
+}
+
+.tc-footer-glow-right {
+  right: -90px;
+  bottom: -130px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.55) 0%, rgba(59, 130, 246, 0) 74%);
+  animation-delay: 2.1s;
+}
+
 /* ── Shared Keyframe Animations ── */
+@keyframes tcFooterGlowPulse {
+  0%, 100% { transform: scale(1); opacity: 0.28; }
+  50% { transform: scale(1.1); opacity: 0.42; }
+}
+
 @keyframes float {
   0%, 100% { transform: translateY(0px);    }
   50%       { transform: translateY(-20px);  }
