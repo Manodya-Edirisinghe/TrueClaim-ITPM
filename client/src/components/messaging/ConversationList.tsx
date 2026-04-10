@@ -2,7 +2,6 @@
 
 import { Trash2, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { resolveImageUrl } from '@/lib/axios';
 
 export type ConversationSummary = {
   _id: string;
@@ -46,7 +45,7 @@ export default function ConversationList({
         const lastMsg = conv.messages[conv.messages.length - 1];
         const otherUser = conv.participants.find((p) => p !== currentUserId) ?? 'Unknown';
         const isActive = conv._id === activeId;
-        const imgSrc = resolveImageUrl(conv.itemImage);
+        const imgSrc = conv.itemImage;
 
         return (
           <li key={conv._id} className="group relative">
@@ -63,6 +62,10 @@ export default function ConversationList({
                 <img
                   src={imgSrc}
                   alt=""
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/placeholder.png';
+                  }}
                   className="size-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
                 />
               ) : (

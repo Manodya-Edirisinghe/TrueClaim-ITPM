@@ -83,7 +83,6 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static('uploads'));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/items', itemRoutes);

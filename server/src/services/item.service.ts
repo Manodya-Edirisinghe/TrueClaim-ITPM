@@ -1,6 +1,3 @@
-import path from 'path';
-import fs from 'fs/promises';
-import crypto from 'crypto';
 import { Item, IItem } from '../models/item.model';
 
 const VALID_TYPES = ['lost', 'found'] as const;
@@ -14,8 +11,7 @@ export interface CreateItemDTO {
   time: string;
   location: string;
   contactNumber: string;
-  imageBuffer?: Buffer;
-  originalName?: string;
+  imageUrl?: string;
   ownerId?: string;
 }
 
@@ -26,8 +22,7 @@ export interface UpdateItemDTO {
   time: string;
   location: string;
   contactNumber: string;
-  imageBuffer?: Buffer;
-  originalName?: string;
+  imageUrl?: string;
 }
 
 function validatePayload(dto: CreateItemDTO): void {
@@ -68,39 +63,8 @@ function validatePayload(dto: CreateItemDTO): void {
   }
 }
 
-const UPLOADS_DIR = path.join(__dirname, '../../uploads');
-
-async function saveImageLocally(
-  buffer: Buffer,
-  originalName?: string
-): Promise<{ imageUrl: string; imagePublicId: string }> {
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
-
-  const ext = originalName
-    ? path.extname(originalName)
-    : '.jpg';
-  const filename = `${crypto.randomUUID()}${ext}`;
-  const filePath = path.join(UPLOADS_DIR, filename);
-
-  await fs.writeFile(filePath, buffer);
-
-  return {
-    imageUrl: `/uploads/${filename}`,
-    imagePublicId: filename,
-  };
-}
-
 export async function createItem(dto: CreateItemDTO): Promise<IItem> {
   validatePayload(dto);
-
-  let imageUrl: string | undefined;
-  let imagePublicId: string | undefined;
-
-  if (dto.imageBuffer) {
-    const saved = await saveImageLocally(dto.imageBuffer, dto.originalName);
-    imageUrl = saved.imageUrl;
-    imagePublicId = saved.imagePublicId;
-  }
 
   const item = await Item.create({
     itemType: dto.itemType,
@@ -110,8 +74,7 @@ export async function createItem(dto: CreateItemDTO): Promise<IItem> {
     time: new Date(dto.time),
     location: dto.location,
     contactNumber: dto.contactNumber,
-    imageUrl,
-    imagePublicId,
+    imageUrl: dto.imageUrl,
     ownerId: dto.ownerId,
   });
 
@@ -173,19 +136,8 @@ export async function updateItem(id: string, dto: UpdateItemDTO): Promise<IItem 
   const item = await Item.findById(id);
   if (!item) return null;
 
-  if (dto.imageBuffer) {
-    const saved = await saveImageLocally(dto.imageBuffer, dto.originalName);
-
-    if (item.imagePublicId) {
-      try {
-        await fs.unlink(path.join(UPLOADS_DIR, item.imagePublicId));
-      } catch {
-        // Ignore if old image file no longer exists.
-      }
-    }
-
-    item.imageUrl = saved.imageUrl;
-    item.imagePublicId = saved.imagePublicId;
+  if (dto.imageUrl) {
+    item.imageUrl = dto.imageUrl;
   }
 
   item.itemTitle = dto.itemTitle;
@@ -202,14 +154,6 @@ export async function updateItem(id: string, dto: UpdateItemDTO): Promise<IItem 
 export async function deleteItem(id: string): Promise<boolean> {
   const item = await Item.findById(id);
   if (!item) return false;
-
-  if (item.imagePublicId) {
-    try {
-      await fs.unlink(path.join(UPLOADS_DIR, item.imagePublicId));
-    } catch {
-      // Ignore if file already removed from disk.
-    }
-  }
 
   await item.deleteOne();
   return true;

@@ -9,7 +9,6 @@ export interface IItem extends Document {
   location: string;
   contactNumber: string;
   imageUrl?: string;
-  imagePublicId?: string;
   // Who submitted this item — used for messaging.
   // FUTURE UPGRADE: Replace with real auth user ID.
   ownerId?: string;
@@ -56,10 +55,6 @@ const itemSchema = new Schema<IItem>(
       trim: true,
     },
     imageUrl: {
-      type: String,
-      default: null,
-    },
-    imagePublicId: {
       type: String,
       default: null,
     },

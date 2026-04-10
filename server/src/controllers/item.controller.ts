@@ -11,8 +11,7 @@ export async function createItem(
     const { itemType, itemTitle, itemCategory, description, time, location, contactNumber } =
       req.body;
 
-    const imageBuffer = req.file?.buffer;
-    const originalName = req.file?.originalname;
+    const imageUrl = req.file?.path;
     const ownerId = req.headers['x-user-id'] as string | undefined;
 
     const item = await itemService.createItem({
@@ -23,8 +22,7 @@ export async function createItem(
       time,
       location,
       contactNumber,
-      imageBuffer,
-      originalName,
+      imageUrl,
       ownerId,
     });
 
@@ -85,8 +83,7 @@ export async function updateItem(
   try {
     const { itemTitle, itemCategory, description, time, location, contactNumber } = req.body;
 
-    const imageBuffer = req.file?.buffer;
-    const originalName = req.file?.originalname;
+    const imageUrl = req.file?.path;
 
     const item = await itemService.updateItem(req.params.id, {
       itemTitle,
@@ -95,8 +92,7 @@ export async function updateItem(
       time,
       location,
       contactNumber,
-      imageBuffer,
-      originalName,
+      imageUrl,
     });
 
     if (!item) {

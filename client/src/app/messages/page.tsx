@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MessageSquare, Search } from 'lucide-react';
-import api from '@/lib/axios';
+import api, { resolveImageUrl } from '@/lib/axios';
 import { getCurrentUserId } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import ConversationList, {
@@ -68,7 +68,7 @@ export default function MessagesPage() {
         const item = data.item ?? data;
         const info = {
           title: item.itemTitle ?? item.title ?? 'Untitled Item',
-          image: item.imageUrl,
+          image: resolveImageUrl(item.imageUrl) ?? undefined,
           category: item.itemCategory ?? item.category,
         };
         setItemCache((prev) => ({ ...prev, [itemId]: info }));

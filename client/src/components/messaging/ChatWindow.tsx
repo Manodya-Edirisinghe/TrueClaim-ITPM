@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { resolveImageUrl } from '@/lib/axios';
 
 export type Message = {
   _id?: string;
@@ -46,7 +45,7 @@ export default function ChatWindow({
     setText('');
   };
 
-  const imgSrc = resolveImageUrl(itemImage);
+  const imgSrc = itemImage;
 
   return (
     <div className="flex h-full flex-col">
@@ -57,6 +56,10 @@ export default function ChatWindow({
           <img
             src={imgSrc}
             alt=""
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = '/placeholder.png';
+            }}
             className="size-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
           />
         ) : (
