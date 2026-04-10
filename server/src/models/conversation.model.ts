@@ -7,6 +7,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IMessage {
   senderId: string;
   text: string;
+  isDeleted?: boolean;
   createdAt: Date;
 }
 
@@ -14,6 +15,7 @@ const messageSchema = new Schema<IMessage>(
   {
     senderId: { type: String, required: true },
     text: { type: String, required: true, trim: true },
+    isDeleted: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
   },
   { _id: true }

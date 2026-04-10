@@ -12,6 +12,7 @@ export type ConversationSummary = {
   itemTitle?: string;
   itemImage?: string;
   itemCategory?: string;
+  otherUserLabel?: string;
 };
 
 type Props = {
@@ -40,10 +41,13 @@ export default function ConversationList({
   }
 
   return (
-    <ul className="divide-y divide-white/[0.06]">
+    <ul className="space-y-2 p-2">
       {conversations.map((conv) => {
         const lastMsg = conv.messages[conv.messages.length - 1];
         const otherUser = conv.participants.find((p) => p !== currentUserId) ?? 'Unknown';
+        const otherUserLabel = conv.otherUserLabel ?? (otherUser.startsWith('user_')
+          ? `User ${otherUser.slice(5)}`
+          : otherUser);
         const isActive = conv._id === activeId;
         const imgSrc = conv.itemImage;
 
@@ -51,10 +55,10 @@ export default function ConversationList({
           <li key={conv._id} className="group relative">
             <button
               onClick={() => onSelect(conv)}
-              className={`flex w-full items-start gap-3 px-3 py-3 text-left transition-colors ${
+              className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-all ${
                 isActive
-                  ? 'bg-blue-500/10 border-l-2 border-blue-500'
-                  : 'hover:bg-white/[0.04] border-l-2 border-transparent'
+                  ? 'border border-blue-400/45 bg-blue-500/15 shadow-lg shadow-blue-900/20'
+                  : 'border border-transparent bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.06]'
               }`}
             >
               {/* Item thumbnail */}
@@ -77,8 +81,10 @@ export default function ConversationList({
               {/* Text content */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-white">
-                    {conv.itemTitle ?? 'Item conversation'}
+                  <span className="truncate text-sm text-white">
+                    <span className="font-semibold">{otherUserLabel}</span>
+                    <span className="mx-1 text-white/35">|</span>
+                    <span className="font-normal text-white/80">{conv.itemTitle ?? 'Item conversation'}</span>
                   </span>
                   {lastMsg && (
                     <span className="shrink-0 text-[10px] text-white/30">
@@ -92,13 +98,6 @@ export default function ConversationList({
                     {conv.itemCategory}
                   </span>
                 )}
-
-                <p className="mt-0.5 text-[11px] text-white/40">
-                  with{' '}
-                  {otherUser.startsWith('user_')
-                    ? `User ${otherUser.slice(5)}`
-                    : otherUser}
-                </p>
 
                 {lastMsg && (
                   <p className="mt-1 truncate text-xs text-white/50">

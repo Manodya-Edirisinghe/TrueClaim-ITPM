@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.middleware';
 import {
   sendMessage,
+  unsendMessage,
   getMessagesByItem,
   getConversations,
   getConversationById,
@@ -15,6 +16,7 @@ const router = Router();
 
 // Messages
 router.post('/send', requireAuth, sendMessage);
+router.delete('/:messageId', requireAuth, unsendMessage);
 router.get('/:itemId', requireAuth, getMessagesByItem);
 
 export default router;

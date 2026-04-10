@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Send, Package } from 'lucide-react';
+import { MoreHorizontal, Send, Smile, Package } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export type Message = {
   _id?: string;
   senderId: string;
   text: string;
+  isDeleted?: boolean;
   createdAt: string;
 };
 
@@ -20,7 +21,13 @@ type Props = {
   itemCategory?: string;
   otherUserLabel: string;
   canType: boolean;
+  isOtherUserTyping: boolean;
+  onTypingStart: () => void;
+  onTypingStop: () => void;
+  onDeleteMessage: (messageId: string) => void;
 };
+
+const QUICK_EMOJIS = ['😀', '😂', '😍', '😎', '🤝', '🙏', '🔥', '🎉', '👍', '❤️', '✅', '🚀'];
 
 export default function ChatWindow({
   messages,
@@ -31,9 +38,17 @@ export default function ChatWindow({
   itemCategory,
   otherUserLabel,
   canType,
+  isOtherUserTyping,
+  onTypingStart,
+  onTypingStop,
+  onDeleteMessage,
 }: Props) {
   const [text, setText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,7 +60,38 @@ export default function ChatWindow({
     if (!trimmed) return;
     onSend(trimmed);
     setText('');
+    setShowEmojiPicker(false);
+    onTypingStop();
   };
+
+  const insertEmoji = (emoji: string) => {
+    setText((prev) => `${prev}${emoji}`);
+    onTypingStart();
+    inputRef.current?.focus();
+  };
+
+  const handleInputChange = (value: string) => {
+    setText(value);
+    if (!canType) return;
+
+    onTypingStart();
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      onTypingStop();
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const imgSrc = itemImage;
 
@@ -123,30 +169,93 @@ export default function ChatWindow({
                   </div>
                 )}
                 <div
-                  className={`max-w-[70%] px-3.5 py-2 text-sm leading-relaxed ${
+                  className={`max-w-[70%] px-3.5 py-2 text-sm leading-relaxed transition-all duration-200 ${
                     isMe
                       ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/10'
                       : 'rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 ring-1 ring-white/[0.06]'
                   }`}
                 >
-                  <p>{msg.text}</p>
+                  <p className={msg.isDeleted ? 'italic text-white/55' : ''}>{msg.text}</p>
                 </div>
+
+                {isMe && msg._id && !msg.isDeleted ? (
+                  <div className="relative ml-1.5 mt-auto">
+                    <button
+                      type="button"
+                      onClick={() => setMenuOpenFor((prev) => (prev === msg._id ? null : msg._id ?? null))}
+                      className="rounded-md p-1 text-white/40 transition hover:bg-white/10 hover:text-white/80"
+                      title="Message options"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    {menuOpenFor === msg._id ? (
+                      <div className="absolute bottom-8 right-0 z-10 min-w-28 rounded-md border border-white/10 bg-[#0d1422] p-1 shadow-lg shadow-black/30">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onDeleteMessage(msg._id as string);
+                            setMenuOpenFor(null);
+                          }}
+                          className="w-full rounded px-2 py-1.5 text-left text-xs text-red-300 transition hover:bg-red-500/15"
+                        >
+                          Unsend
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           );
         })}
+        {isOtherUserTyping ? (
+          <div className="flex items-center gap-2 pl-1 text-xs text-white/55">
+            <span>{otherUserLabel} is typing</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/60" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/60" style={{ animationDelay: '0.2s' }} />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/60" style={{ animationDelay: '0.4s' }} />
+            </span>
+          </div>
+        ) : null}
         <div ref={bottomRef} />
       </div>
 
       {/* ── Input ─────────────────────────────────────────────────────── */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 border-t border-white/10 bg-white/[0.02] px-4 py-3"
+        className="relative flex items-center gap-2 border-t border-white/10 bg-white/[0.02] px-4 py-3"
       >
+        <button
+          type="button"
+          disabled={!canType}
+          onClick={() => setShowEmojiPicker((prev) => !prev)}
+          className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/75 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+          title="Emoji"
+        >
+          <Smile className="size-4" />
+        </button>
+        {showEmojiPicker ? (
+          <div className="absolute bottom-16 left-4 z-20 w-64 rounded-xl border border-white/10 bg-[#0d1422] p-3 shadow-2xl shadow-black/40">
+            <div className="grid grid-cols-6 gap-2">
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => insertEmoji(emoji)}
+                  className="rounded-md bg-white/[0.04] py-1.5 text-lg transition hover:bg-white/[0.12]"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <input
+          ref={inputRef}
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => handleInputChange(e.target.value)}
           placeholder={canType ? 'Type a message…' : 'Load a conversation to start typing'}
           disabled={!canType}
           className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-blue-500/60 focus:bg-white/[0.06] focus:ring-1 focus:ring-blue-500/20"

@@ -82,3 +82,39 @@ export async function deleteConversation(
   });
   return result !== null;
 }
+
+/**
+ * Unsend a single message by marking it deleted (soft delete).
+ * Only the original sender can unsend their message.
+ */
+export async function unsendMessage(
+  messageId: string,
+  userId: string
+): Promise<{ conversation: IConversation | null; reason?: 'not_found' | 'forbidden' }> {
+  const conversation = await Conversation.findOne({
+    messages: { $elemMatch: { _id: messageId } },
+  });
+
+  if (!conversation) {
+    return { conversation: null, reason: 'not_found' };
+  }
+
+  const targetMessage = conversation.messages.find((message) => {
+    const id = (message as unknown as { _id?: unknown })._id;
+    return String(id ?? '') === messageId;
+  });
+
+  if (!targetMessage) {
+    return { conversation: null, reason: 'not_found' };
+  }
+
+  if (targetMessage.senderId !== userId) {
+    return { conversation: null, reason: 'forbidden' };
+  }
+
+  targetMessage.text = 'This message was deleted';
+  targetMessage.isDeleted = true;
+  await conversation.save();
+
+  return { conversation };
+}

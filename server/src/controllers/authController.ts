@@ -106,3 +106,28 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<Respo
     return res.status(500).json({ error: error.message });
   }
 };
+
+// ─── PUBLIC USER NAME LOOKUP (JWT) ────────────────────────────────────────
+// Used by messaging UI to display participant names instead of raw IDs.
+export const getUserDisplayNameById = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const requesterId = (req as AuthenticatedRequest).user?.id;
+    if (!requesterId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { userId } = req.params;
+    if (!userId?.trim()) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const user = await User.findById(userId).select('fullName');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.json({ user: { _id: userId, fullName: user.fullName } });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};

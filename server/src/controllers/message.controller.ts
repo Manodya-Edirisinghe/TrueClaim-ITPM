@@ -174,3 +174,47 @@ export const deleteConversation = async (
     next(err);
   }
 };
+
+/**
+ * DELETE /api/messages/:messageId
+ * Soft-delete a message sent by the current user.
+ */
+export const unsendMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { messageId } = req.params;
+    if (!messageId?.trim()) {
+      res.status(400).json({ error: 'messageId is required' });
+      return;
+    }
+
+    const result = await messageService.unsendMessage(messageId, userId);
+
+    if (!result.conversation) {
+      if (result.reason === 'forbidden') {
+        res.status(403).json({ error: 'You can only delete your own messages' });
+        return;
+      }
+
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+
+    res.json({
+      message: 'Message deleted',
+      messageId,
+      conversation: result.conversation,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

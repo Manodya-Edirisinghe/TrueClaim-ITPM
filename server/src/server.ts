@@ -63,15 +63,45 @@ io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
 
   // Join a room scoped to a conversation (itemId + sorted participants)
-  socket.on('join_conversation', (conversationId: string) => {
-    socket.join(conversationId);
-    console.log(`[Socket] ${socket.id} joined room ${conversationId}`);
+  socket.on('join_conversation', (roomId: string) => {
+    socket.join(roomId);
+    console.log(`[Socket] ${socket.id} joined room ${roomId}`);
   });
 
   // Real-time message relay: client emits this after the REST API persists it
-  socket.on('send_message', (data: { conversationId: string; message: unknown }) => {
+  socket.on('send_message', (data: { conversationId: string; itemId?: string; message: unknown }) => {
     // Broadcast to everyone else in the conversation room
-    socket.to(data.conversationId).emit('receive_message', data.message);
+    socket.to(data.conversationId).emit('receive_message', data);
+    if (data.itemId) {
+      socket.to(data.itemId).emit('receive_message', data);
+    }
+  });
+
+  socket.on('typing', (data: { conversationId?: string; itemId?: string; senderId: string }) => {
+    if (data.conversationId) {
+      socket.to(data.conversationId).emit('typing', data);
+    }
+    if (data.itemId) {
+      socket.to(data.itemId).emit('typing', data);
+    }
+  });
+
+  socket.on('stop_typing', (data: { conversationId?: string; itemId?: string; senderId: string }) => {
+    if (data.conversationId) {
+      socket.to(data.conversationId).emit('stop_typing', data);
+    }
+    if (data.itemId) {
+      socket.to(data.itemId).emit('stop_typing', data);
+    }
+  });
+
+  socket.on('message_deleted', (data: { conversationId?: string; itemId?: string; messageId: string }) => {
+    if (data.conversationId) {
+      socket.to(data.conversationId).emit('message_deleted', data);
+    }
+    if (data.itemId) {
+      socket.to(data.itemId).emit('message_deleted', data);
+    }
   });
 
   socket.on('disconnect', () => {

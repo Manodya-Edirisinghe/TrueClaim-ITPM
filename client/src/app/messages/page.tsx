@@ -24,6 +24,8 @@ export default function MessagesPage() {
   const [conversationLoaded, setConversationLoaded] = useState(false);
   const [itemCache, setItemCache] = useState<Record<string, { title: string; image?: string; category?: string }>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+  const [userNameCache, setUserNameCache] = useState<Record<string, string>>({});
 
   // Ref to avoid stale closure in enrichItemInfo
   const itemCacheRef = useRef(itemCache);
@@ -82,6 +84,27 @@ export default function MessagesPage() {
     []
   );
 
+  const enrichUserName = useCallback(
+    async (userId: string) => {
+      if (!userId || userNameCache[userId]) return userNameCache[userId];
+
+      try {
+        const { data } = await api.get<{ user?: { fullName?: string } }>(
+          `/auth/user/${encodeURIComponent(userId)}`
+        );
+        const resolved = data?.user?.fullName?.trim();
+        const label = resolved || userId;
+        setUserNameCache((prev) => ({ ...prev, [userId]: label }));
+        return label;
+      } catch {
+        const fallback = userId.startsWith('user_') ? `User ${userId.slice(5)}` : userId;
+        setUserNameCache((prev) => ({ ...prev, [userId]: fallback }));
+        return fallback;
+      }
+    },
+    [userNameCache]
+  );
+
   // ── Initialize ───────────────────────────────────────────────────────────
   useEffect(() => {
     fetchConversations();
@@ -119,15 +142,87 @@ export default function MessagesPage() {
     if (activeConv?._id) {
       socket.emit('join_conversation', activeConv._id);
     }
+    if (activeConv?.itemId) {
+      socket.emit('join_conversation', activeConv.itemId);
+    }
 
-    socket.on('receive_message', (msg: Message) => {
-      setMessages((prev) => [...prev, msg]);
+    socket.on('receive_message', (payload: { conversationId?: string; itemId?: string; message: Message } | Message) => {
+      const normalized =
+        payload && typeof payload === 'object' && 'message' in payload
+          ? payload
+          : { message: payload as Message };
+
+      const incomingMsg = normalized.message;
+      const sameActiveConversation =
+        Boolean(activeConv?._id) && normalized.conversationId === activeConv?._id;
+      const sameActiveItem =
+        Boolean(activeConv?.itemId) && normalized.itemId === activeConv?.itemId;
+
+      if (!sameActiveConversation && !sameActiveItem) {
+        return;
+      }
+
+      setMessages((prev) => {
+        const exists = incomingMsg._id
+          ? prev.some((entry) => entry._id === incomingMsg._id)
+          : false;
+        if (exists) return prev;
+        return [...prev, incomingMsg];
+      });
+
+      const roomKey = normalized.conversationId || normalized.itemId;
+      if (roomKey) {
+        setTypingUsers((prev) => ({ ...prev, [roomKey]: [] }));
+      }
+    });
+
+    socket.on('typing', (payload: { conversationId?: string; itemId?: string; senderId: string }) => {
+      const roomKey = payload.conversationId || payload.itemId;
+      if (!roomKey || payload.senderId === currentUserId) return;
+
+      setTypingUsers((prev) => {
+        const current = prev[roomKey] ?? [];
+        if (current.includes(payload.senderId)) return prev;
+        return { ...prev, [roomKey]: [...current, payload.senderId] };
+      });
+    });
+
+    socket.on('stop_typing', (payload: { conversationId?: string; itemId?: string; senderId: string }) => {
+      const roomKey = payload.conversationId || payload.itemId;
+      if (!roomKey || payload.senderId === currentUserId) return;
+
+      setTypingUsers((prev) => ({
+        ...prev,
+        [roomKey]: (prev[roomKey] ?? []).filter((id) => id !== payload.senderId),
+      }));
+    });
+
+    socket.on('message_deleted', (payload: { conversationId?: string; itemId?: string; messageId: string }) => {
+      const sameActiveConversation =
+        Boolean(activeConv?._id) && payload.conversationId === activeConv?._id;
+      const sameActiveItem =
+        Boolean(activeConv?.itemId) && payload.itemId === activeConv?.itemId;
+
+      if (!sameActiveConversation && !sameActiveItem) {
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry._id === payload.messageId
+            ? { ...entry, text: 'This message was deleted', isDeleted: true }
+            : entry
+        )
+      );
     });
 
     return () => {
       socket.off('receive_message');
+      socket.off('typing');
+      socket.off('stop_typing');
+      socket.off('message_deleted');
     };
-  }, [activeConv?._id]);
+  }, [activeConv?._id, activeConv?.itemId, currentUserId]);
 
   // ── Send a message ───────────────────────────────────────────────────────
   const handleSend = async (text: string) => {
@@ -150,6 +245,7 @@ export default function MessagesPage() {
       const lastMsg = data.messages[data.messages.length - 1];
       socket.emit('send_message', {
         conversationId: data._id,
+        itemId: data.itemId,
         message: lastMsg,
       });
 
@@ -183,18 +279,79 @@ export default function MessagesPage() {
     const loadedConv = await fetchItemMessages(conv.itemId);
     if (loadedConv) {
       setActiveConv(loadedConv);
+      const socket = getSocket();
+      if (loadedConv._id) {
+        socket.emit('join_conversation', loadedConv._id);
+      }
+      if (loadedConv.itemId) {
+        socket.emit('join_conversation', loadedConv.itemId);
+      }
     }
     await enrichItemInfo(conv.itemId);
+  };
+
+  const handleTypingStart = () => {
+    if (!activeConv || !currentUserId) return;
+    const socket = getSocket();
+    socket.emit('typing', {
+      conversationId: activeConv._id,
+      itemId: activeConv.itemId,
+      senderId: currentUserId,
+    });
+  };
+
+  const handleTypingStop = () => {
+    if (!activeConv || !currentUserId) return;
+    const socket = getSocket();
+    socket.emit('stop_typing', {
+      conversationId: activeConv._id,
+      itemId: activeConv.itemId,
+      senderId: currentUserId,
+    });
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!activeConv || !messageId) return;
+
+    try {
+      const { data } = await api.delete(`/messages/${encodeURIComponent(messageId)}`);
+      const updatedMessages = data?.conversation?.messages;
+
+      if (Array.isArray(updatedMessages)) {
+        setMessages(updatedMessages);
+      } else {
+        setMessages((prev) =>
+          prev.map((entry) =>
+            entry._id === messageId
+              ? { ...entry, text: 'This message was deleted', isDeleted: true }
+              : entry
+          )
+        );
+      }
+
+      const socket = getSocket();
+      socket.emit('message_deleted', {
+        conversationId: activeConv._id,
+        itemId: activeConv.itemId,
+        messageId,
+      });
+    } catch (error) {
+      console.error('Failed to delete message', error);
+    }
   };
 
   // ── Derived values ─────────────────────────────────────────────────────
   const otherUser = activeConv
     ? activeConv.participants.find((p) => p !== currentUserId) ?? 'Unknown'
     : '';
-  const otherUserLabel = otherUser.startsWith('user_')
+  const otherUserLabel = userNameCache[otherUser] ?? (otherUser.startsWith('user_')
     ? `User ${otherUser.slice(5)}`
-    : otherUser;
+    : otherUser);
   const activeItemInfo = activeConv ? itemCache[activeConv.itemId] : undefined;
+  const activeTypingRoomKey = activeConv?._id || activeConv?.itemId || '';
+  const isOtherUserTyping = activeTypingRoomKey
+    ? (typingUsers[activeTypingRoomKey] ?? []).some((id) => id !== currentUserId)
+    : false;
 
   // Enrich + filter conversations for the sidebar
   const enrichedConversations = conversations.map((c) => ({
@@ -202,6 +359,9 @@ export default function MessagesPage() {
     itemTitle: itemCache[c.itemId]?.title,
     itemImage: itemCache[c.itemId]?.image,
     itemCategory: itemCache[c.itemId]?.category,
+    otherUserLabel:
+      userNameCache[c.participants.find((p) => p !== currentUserId) ?? ''] ??
+      (c.participants.find((p) => p !== currentUserId) ?? 'Unknown'),
   }));
 
   const filteredConversations = searchQuery
@@ -218,8 +378,13 @@ export default function MessagesPage() {
   useEffect(() => {
     conversations.forEach((c) => {
       if (!itemCache[c.itemId]) enrichItemInfo(c.itemId);
+
+      const other = c.participants.find((p) => p !== currentUserId);
+      if (other && !userNameCache[other]) {
+        void enrichUserName(other);
+      }
     });
-  }, [conversations, itemCache, enrichItemInfo]);
+  }, [conversations, itemCache, currentUserId, enrichItemInfo, enrichUserName, userNameCache]);
 
   return (
     <div className="min-h-screen bg-[#05070c] pt-24 px-4 pb-6">
@@ -239,7 +404,7 @@ export default function MessagesPage() {
 
         <div className="flex h-[calc(100vh-180px)] overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] shadow-2xl shadow-black/40">
           {/* ── Left sidebar ──────────────────────────────────────────── */}
-          <div className="flex w-80 shrink-0 flex-col border-r border-white/10 bg-white/[0.02]">
+          <div className="flex w-80 shrink-0 flex-col border-r border-white/10 bg-gradient-to-b from-[#0d1220] to-[#0a0f1a]">
             {/* Sidebar header + search */}
             <div className="border-b border-white/10 p-3 space-y-2">
               <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-white/40">
@@ -287,6 +452,10 @@ export default function MessagesPage() {
                 itemCategory={activeItemInfo?.category}
                 otherUserLabel={otherUserLabel}
                 canType={conversationLoaded}
+                isOtherUserTyping={isOtherUserTyping}
+                onTypingStart={handleTypingStart}
+                onTypingStop={handleTypingStop}
+                onDeleteMessage={handleDeleteMessage}
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-4">
