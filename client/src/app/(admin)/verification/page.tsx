@@ -166,7 +166,7 @@ function MeetingForm({
         value={meetingDateTime}
         onChange={(event) => setMeetingDateTime(event.target.value)}
         min={minMeetingDateTime}
-        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
+        className="tc-light-datetime w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black [color-scheme:light] outline-none focus:border-[#0A66C2]"
       />
       <button
         type="submit"
@@ -1224,7 +1224,7 @@ export default function VerificationDashboardPage() {
                                 value={meetingFormDateTime}
                                 onChange={(event) => setMeetingFormDateTime(event.target.value)}
                                 min={minMeetingDateTime}
-                                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
+                                className="tc-light-datetime w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black [color-scheme:light] outline-none focus:border-[#0A66C2]"
                               />
                               <div className="sm:col-span-2 flex gap-2">
                                 <button

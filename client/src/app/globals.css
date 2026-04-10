@@ -71,6 +71,12 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
+/* Keep icon visible for light datetime inputs used in admin meeting forms. */
+input.tc-light-datetime[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 1;
+}
+
 /* ── Shared Keyframe Animations ── */
 @keyframes float {
   0%, 100% { transform: translateY(0px);    }
