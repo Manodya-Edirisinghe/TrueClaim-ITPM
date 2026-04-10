@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/axios';
 import { Button } from '@/components/ui/button';
+import { useNotifications } from '@/components/notifications/notification-provider';
 import ItemCard from './ItemCard';
 
 const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
@@ -232,6 +233,7 @@ type MyListingsSectionProps = {
 };
 
 export default function MyListingsSection({ compact = false }: MyListingsSectionProps) {
+  const { addNotification } = useNotifications();
   const [items, setItems] = useState<ListingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -300,6 +302,7 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
       setItems((prev) => prev.filter((entry) => entry._id !== id));
       forgetListingId(id);
       toast.success('Item deleted successfully.');
+      addNotification('Item deleted successfully.', 'info');
     } catch {
       toast.error('Failed to delete item. Please try again.');
     } finally {
@@ -330,6 +333,7 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
       setItems((prev) => prev.map((entry) => (entry._id === id ? updatedItem : entry)));
       setEditingItem(null);
       toast.success('Item updated successfully.');
+      addNotification('Item updated successfully.', 'success');
     } catch {
       toast.error('Failed to update item. Please try again.');
     } finally {

@@ -3,8 +3,10 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, UserCircle2, X, Sparkles } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Bell, CheckCheck, Menu, Trash2, UserCircle2, X, Sparkles } from 'lucide-react';
 import api from '@/lib/axios';
+import { useNotifications } from '@/components/notifications/notification-provider';
 import { cn } from '@/lib/utils';
 
 const blue = '#0A66C2';
@@ -38,6 +40,14 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = React.useState(false);
   const [activeLandingSection, setActiveLandingSection] = React.useState('');
   const [username, setUsername] = React.useState('Profile');
+  const [showNotifications, setShowNotifications] = React.useState(false);
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useNotifications();
 
   React.useEffect(() => {
     const syncUser = async () => {
@@ -57,6 +67,14 @@ export default function Navbar() {
 
     void syncUser();
   }, []);
+
+  React.useEffect(() => {
+    const onDocClick = () => setShowNotifications(false);
+    if (!showNotifications) return;
+
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [showNotifications]);
 
   React.useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 50);
@@ -235,6 +253,93 @@ export default function Navbar() {
                   ))}
                 </ul>
               </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowNotifications((prev) => !prev);
+                  }}
+                  className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white transition hover:bg-white/10"
+                  title="Notifications"
+                >
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                <div
+                  onClick={(event) => event.stopPropagation()}
+                  className={cn(
+                    'absolute right-0 top-12 z-50 w-80 origin-top-right rounded-xl border border-white/10 bg-[#0c1424] p-2 shadow-2xl shadow-black/40 transition-all duration-200',
+                    showNotifications
+                      ? 'pointer-events-auto translate-y-0 opacity-100'
+                      : 'pointer-events-none -translate-y-2 opacity-0'
+                  )}
+                >
+                  <div className="mb-2 flex items-center justify-between px-2 py-1">
+                    <p className="text-sm font-semibold text-white">Notifications</p>
+                    <button
+                      type="button"
+                      onClick={markAllAsRead}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      Mark all as read
+                    </button>
+                  </div>
+
+                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                    {notifications.length === 0 ? (
+                      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs text-white/55">
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      notifications.map((note) => (
+                        <div
+                          key={note.id}
+                          className={cn(
+                            'rounded-lg border p-2.5 transition',
+                            note.isRead
+                              ? 'border-white/10 bg-white/[0.03]'
+                              : 'border-blue-400/30 bg-blue-500/10'
+                          )}
+                        >
+                          <p className="text-xs text-white">{note.message}</p>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-white/45">
+                              {formatDistanceToNow(new Date(note.timestamp), { addSuffix: true })}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {!note.isRead ? (
+                                <button
+                                  type="button"
+                                  onClick={() => markAsRead(note.id)}
+                                  className="rounded px-1.5 py-1 text-[10px] text-cyan-300 transition hover:bg-white/10"
+                                >
+                                  Mark read
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => deleteNotification(note.id)}
+                                className="rounded p-1 text-white/60 transition hover:bg-red-500/20 hover:text-red-300"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <Link
                 href="/profile"
                 onClick={() => setMenuState(false)}

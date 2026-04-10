@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import api from '@/lib/axios';
+import { useNotifications } from '@/components/notifications/notification-provider';
 
 const MY_LISTING_IDS_KEY = 'trueclaim_my_listing_ids';
 
@@ -364,6 +365,7 @@ function ItemForm({
 
 function LostAndFoundPageContent() {
   const router = useRouter();
+  const { addNotification } = useNotifications();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
 
@@ -391,6 +393,8 @@ function LostAndFoundPageContent() {
 
     const createdId = response.data?.item?._id;
     if (createdId) rememberListingId(createdId);
+
+    addNotification('Item uploaded successfully.', 'success');
 
     router.push('/profile?tab=listings');
   };
