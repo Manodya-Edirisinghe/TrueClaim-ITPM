@@ -13,6 +13,7 @@ const subtle = 'rgba(255,255,255,0.07)';
 const menuItems = [
   { name: 'Home',         href: '/landing' },
   { name: 'Match Items',  href: '/matching' },
+  { name: 'Profile',      href: '/profile' },
   { name: 'Feedback',     href: '/feedback' },
   { name: 'Messages',     href: '/messages' },
   { name: 'Contact',      href: '/landing#contact' },
