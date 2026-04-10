@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
 // Preconfigured Axios client pointing at the TrueClaim Express API.
@@ -16,6 +17,23 @@ function getApiBaseUrl(): string {
 
   return 'http://localhost:5000/api';
 }
+
+function getDirectApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || 'localhost';
+    return `http://${host}:5000/api`;
+  }
+
+  return 'http://localhost:5000/api';
+}
+
+type RetryableAxiosRequestConfig = AxiosRequestConfig & {
+  __isDirectApiRetry?: boolean;
+};
 
 const api = axios.create({
   baseURL: getApiBaseUrl(),
@@ -55,6 +73,22 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const config = (error?.config ?? {}) as RetryableAxiosRequestConfig;
+
+    if (
+      typeof window !== 'undefined' &&
+      !error?.response &&
+      !config.__isDirectApiRetry &&
+      typeof config.url === 'string' &&
+      !/^https?:\/\//i.test(config.url)
+    ) {
+      return api.request({
+        ...config,
+        __isDirectApiRetry: true,
+        baseURL: getDirectApiBaseUrl(),
+      });
+    }
+
     if (!error.response) {
       console.warn('[API Error] Network request failed. Check API server availability and NEXT_PUBLIC_API_URL.');
     } else {

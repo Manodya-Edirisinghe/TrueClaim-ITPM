@@ -17,9 +17,11 @@ export interface IClaim extends Document {
   claimantName: string;
   claimantEmail: string;
   claimantContactNumber: string;
-  ownershipPassword: string;
-  serialNumber: string;
-  lostPlace: string;
+  ownershipPassword?: string;
+  serialNumber?: string;
+  lostPlace?: string;
+  uniqueQuestion: string;
+  uniqueAnswer: string;
   verificationId: string;
   verificationStartedAt: Date;
   verificationEndsAt: Date;
@@ -78,15 +80,25 @@ const claimSchema = new Schema<IClaim>(
     },
     ownershipPassword: {
       type: String,
-      required: true,
       trim: true,
+      default: '',
     },
     serialNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    lostPlace: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    uniqueQuestion: {
       type: String,
       required: true,
       trim: true,
     },
-    lostPlace: {
+    uniqueAnswer: {
       type: String,
       required: true,
       trim: true,

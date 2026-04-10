@@ -50,6 +50,36 @@ type ApiItem = {
   ownerAvatarUrl?: string | null;
 };
 
+type ClaimFormState = {
+  claimantName: string;
+  claimantEmail: string;
+  claimantContactNumber: string;
+  uniqueAnswer: string;
+};
+
+type AuthMeResponse = {
+  user?: {
+    fullName?: string;
+    universityEmail?: string;
+    phoneNumber?: string;
+  };
+};
+
+const CATEGORY_CLAIM_QUESTIONS: Record<string, string> = {
+  'Wallet / Purse': 'What is the exact color and material inside lining of the wallet/purse?',
+  Keys: 'How many keys are on the keychain, and is there any unique keychain tag/charm attached?',
+  Phone: 'What is the lock screen wallpaper (main subject/colors)?',
+  'Bag / Backpack': 'What brand/logo is on the bag, and what item is in the smallest zip pocket?',
+  Documents: 'What is the document type and the last 4 characters of the document number?',
+  Jewelry: 'What engraving, symbol, or hallmark is on the piece (inside band/clasp/back)?',
+  Electronics: 'What is one accessory detail (case color, sticker, or charger type) that was with it?',
+  Clothing: 'What is the size label and one distinctive mark/pattern/stitch detail?',
+  Other: 'Name one very specific detail that is not visible in the public listing.',
+};
+
+const DEFAULT_CLAIM_QUESTION =
+  'Name one very specific detail that is not visible in the public listing.';
+
 const FALLBACK_IMAGE = '/placeholder.png';
 const ITEMS_PER_PAGE = 12;
 
@@ -102,6 +132,10 @@ function filterItemsByKeyword(items: MatchItem[], keyword: string): MatchItem[] 
   });
 }
 
+function getCategoryClaimQuestion(category: string): string {
+  return CATEGORY_CLAIM_QUESTIONS[category] ?? DEFAULT_CLAIM_QUESTION;
+}
+
 export default function MatchingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,6 +144,7 @@ export default function MatchingPage() {
   const initialLocation = searchParams.get('location') ?? '';
   const sourceType =
     parseItemType(searchParams.get('sourceType')) ?? parseItemType(searchParams.get('itemType'));
+  const claimItemId = searchParams.get('claimItemId');
   const targetItemType = sourceType ? getCounterpartType(sourceType) : null;
 
   const [items, setItems] = useState<MatchItem[]>([]);
@@ -133,7 +168,22 @@ export default function MatchingPage() {
   const [results, setResults] = useState<DisplayMatchItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<DisplayMatchItem | null>(null);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
+  const [handledAutoClaimItemId, setHandledAutoClaimItemId] = useState<string | null>(null);
+  const [pendingAutoClaimItemId, setPendingAutoClaimItemId] = useState<string | null>(null);
+  const [claimForm, setClaimForm] = useState<ClaimFormState>({
+    claimantName: '',
+    claimantEmail: '',
+    claimantContactNumber: '',
+    uniqueAnswer: '',
+  });
   const showImageSearchLoading = isSearching && Boolean(uploadedImage);
+
+  const claimQuestion = useMemo(
+    () => (selectedItem ? getCategoryClaimQuestion(selectedItem.category) : DEFAULT_CLAIM_QUESTION),
+    [selectedItem]
+  );
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(items.map((item) => item.category)))],
@@ -238,6 +288,26 @@ export default function MatchingPage() {
     }
   }, [initialKeyword, initialCategory, initialLocation, items]);
 
+  useEffect(() => {
+    if (!claimItemId || isLoadingItems) return;
+    if (handledAutoClaimItemId === claimItemId) return;
+
+    const candidate = results.find((entry) => entry.id === claimItemId);
+    if (!candidate) return;
+
+    setSelectedItem(candidate);
+    setPendingAutoClaimItemId(claimItemId);
+    setHandledAutoClaimItemId(claimItemId);
+  }, [claimItemId, isLoadingItems, results, handledAutoClaimItemId]);
+
+  useEffect(() => {
+    if (!pendingAutoClaimItemId || !selectedItem) return;
+    if (selectedItem.id !== pendingAutoClaimItemId) return;
+
+    void openClaimModal();
+    setPendingAutoClaimItemId(null);
+  }, [pendingAutoClaimItemId, selectedItem]);
+
   const onSubmitSearch = async () => {
     const searchingWithImage = Boolean(uploadedImage);
     setIsSearching(searchingWithImage);
@@ -329,6 +399,72 @@ export default function MatchingPage() {
     }
 
     router.push(`/messages?itemId=${selectedItem.id}&receiverId=${encodeURIComponent(receiverId)}`);
+  };
+
+  const openClaimModal = async () => {
+    if (!selectedItem) return;
+
+    const currentUserId = getCurrentUserId();
+    if (selectedItem.ownerId && selectedItem.ownerId === currentUserId) {
+      toast.info('You cannot claim your own listing.');
+      return;
+    }
+
+    setClaimForm((prev) => ({
+      ...prev,
+      uniqueAnswer: '',
+    }));
+    setIsClaimModalOpen(true);
+
+    try {
+      const { data } = await api.get<AuthMeResponse>('/auth/me');
+      const user = data?.user;
+      setClaimForm((prev) => ({
+        ...prev,
+        claimantName: user?.fullName?.trim() || prev.claimantName,
+        claimantEmail: user?.universityEmail?.trim() || prev.claimantEmail,
+        claimantContactNumber: user?.phoneNumber?.trim() || prev.claimantContactNumber,
+      }));
+    } catch {
+      // Keep manual entry when user profile is unavailable.
+    }
+  };
+
+  const submitClaim = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedItem) return;
+
+    const payload = {
+      itemId: selectedItem.id,
+      claimantName: claimForm.claimantName.trim(),
+      claimantEmail: claimForm.claimantEmail.trim().toLowerCase(),
+      claimantContactNumber: claimForm.claimantContactNumber.trim(),
+      uniqueQuestion: claimQuestion,
+      uniqueAnswer: claimForm.uniqueAnswer.trim(),
+    };
+
+    if (
+      !payload.claimantName ||
+      !payload.claimantEmail ||
+      !payload.claimantContactNumber ||
+      !payload.uniqueAnswer
+    ) {
+      toast.error('Please fill in your name, email, contact number, and answer.');
+      return;
+    }
+
+    try {
+      setIsSubmittingClaim(true);
+      await api.post('/claims', payload);
+      toast.success('Claim submitted. Your answer is sent to the verification dashboard.');
+      setIsClaimModalOpen(false);
+      setSelectedItem(null);
+    } catch (error) {
+      console.error('[Claim Submit Error]', error);
+      toast.error('Failed to submit claim. Please try again.');
+    } finally {
+      setIsSubmittingClaim(false);
+    }
   };
 
   return (
@@ -489,6 +625,13 @@ export default function MatchingPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => void openClaimModal()}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  Claim Item
+                </button>
+                <button
+                  type="button"
                   onClick={onMessageOwner}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                 >
@@ -496,6 +639,94 @@ export default function MatchingPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isClaimModalOpen && selectedItem ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl border border-white/15 bg-[#101625] p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Claim {selectedItem.title}</h3>
+                <p className="text-xs text-white/60">Category: {selectedItem.category}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsClaimModalOpen(false)}
+                className="rounded-md border border-white/20 px-2.5 py-1 text-xs font-medium text-white/80 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={submitClaim} className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input
+                  value={claimForm.claimantName}
+                  onChange={(event) =>
+                    setClaimForm((prev) => ({ ...prev, claimantName: event.target.value }))
+                  }
+                  placeholder="Your full name"
+                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-blue-400"
+                />
+                <input
+                  type="email"
+                  value={claimForm.claimantEmail}
+                  onChange={(event) =>
+                    setClaimForm((prev) => ({ ...prev, claimantEmail: event.target.value }))
+                  }
+                  placeholder="University email"
+                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-blue-400"
+                />
+              </div>
+
+              <input
+                value={claimForm.claimantContactNumber}
+                onChange={(event) =>
+                  setClaimForm((prev) => ({
+                    ...prev,
+                    claimantContactNumber: event.target.value.replace(/\D/g, '').slice(0, 10),
+                  }))
+                }
+                placeholder="Contact number"
+                className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-blue-400"
+              />
+
+              <div className="rounded-lg border border-indigo-300/30 bg-indigo-500/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-200">
+                  Unique verification question
+                </p>
+                <p className="mt-1 text-sm text-indigo-50">{claimQuestion}</p>
+              </div>
+
+              <textarea
+                value={claimForm.uniqueAnswer}
+                onChange={(event) =>
+                  setClaimForm((prev) => ({ ...prev, uniqueAnswer: event.target.value }))
+                }
+                rows={4}
+                placeholder="Your answer"
+                className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-blue-400"
+              />
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsClaimModalOpen(false)}
+                  className="rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-white/80 hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingClaim}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-70"
+                >
+                  {isSubmittingClaim ? 'Submitting...' : 'Submit Claim'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}

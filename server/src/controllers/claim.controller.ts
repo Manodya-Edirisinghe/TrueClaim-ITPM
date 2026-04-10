@@ -12,8 +12,10 @@ type PopulatedClaim = {
   claimantName: string;
   claimantEmail: string;
   claimantContactNumber: string;
-  serialNumber: string;
-  lostPlace: string;
+  serialNumber?: string;
+  lostPlace?: string;
+  uniqueQuestion: string;
+  uniqueAnswer: string;
   verificationEndsAt: Date;
   meetingLocation?: string | null;
   meetingDateTime?: Date | null;
@@ -49,8 +51,10 @@ function toApiClaim(claim: PopulatedClaim, claimerCount: number) {
     claimantName: claim.claimantName,
     claimantEmail: claim.claimantEmail,
     claimantContactNumber: claim.claimantContactNumber,
-    serialNumber: claim.serialNumber,
-    lostPlace: claim.lostPlace,
+    serialNumber: claim.serialNumber ?? '',
+    lostPlace: claim.lostPlace ?? '',
+    uniqueQuestion: claim.uniqueQuestion ?? 'No category question recorded.',
+    uniqueAnswer: claim.uniqueAnswer ?? 'No answer submitted.',
     verificationEndsAt: claim.verificationEndsAt,
     countdownRemainingMs: remaining,
     claimerCount,
@@ -124,6 +128,8 @@ export const createClaim = async (
       claimantName,
       claimantEmail,
       claimantContactNumber,
+      uniqueQuestion,
+      uniqueAnswer,
       ownershipPassword,
       serialNumber,
       lostPlace,
@@ -134,9 +140,8 @@ export const createClaim = async (
       !claimantName ||
       !claimantEmail ||
       !claimantContactNumber ||
-      !ownershipPassword ||
-      !serialNumber ||
-      !lostPlace
+      !uniqueQuestion ||
+      !uniqueAnswer
     ) {
       res.status(400).json({ error: 'Missing required claim fields.' });
       return;
@@ -150,9 +155,11 @@ export const createClaim = async (
       claimantName,
       claimantEmail,
       claimantContactNumber,
-      ownershipPassword,
-      serialNumber,
-      lostPlace,
+      uniqueQuestion,
+      uniqueAnswer,
+      ownershipPassword: ownershipPassword ?? '',
+      serialNumber: serialNumber ?? '',
+      lostPlace: lostPlace ?? '',
       verificationId: `VERIFY-${randomUUID().slice(0, 8).toUpperCase()}`,
       verificationStartedAt: now,
       verificationEndsAt,

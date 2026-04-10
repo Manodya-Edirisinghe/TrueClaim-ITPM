@@ -21,8 +21,10 @@ type VerificationClaim = {
   claimantName: string;
   claimantEmail: string;
   claimantContactNumber: string;
-  serialNumber: string;
-  lostPlace: string;
+  serialNumber?: string;
+  lostPlace?: string;
+  uniqueQuestion: string;
+  uniqueAnswer: string;
   verificationEndsAt: string;
   countdownRemainingMs: number;
   claimerCount: number;
@@ -82,18 +84,6 @@ function formatCountdown(ms: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return `${hours}h ${minutes}m ${seconds}s`;
-}
-
-function getUniqueVerificationQuestions(claim: VerificationClaim): string[] {
-  const itemTitle = claim.itemId?.itemTitle ?? "item";
-
-  return [
-    `What is one hidden or personal mark on the ${itemTitle}?`,
-    `Tell the exact location and date where you lost this ${itemTitle}.`,
-    "What accessories or stickers were attached to the item at the time it was lost?",
-    "Share one proof of ownership (invoice photo, old photo, or warranty detail).",
-    "Confirm the serial number or lock pattern and explain where it appears on the item.",
-  ];
 }
 
 function MeetingForm({
@@ -292,6 +282,7 @@ function LostFoundItemCard({
 export default function VerificationDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "verification" | "management" | "notifications">("overview");
+  const [verificationView, setVerificationView] = useState<"auto" | "manual">("auto");
   const [claims, setClaims] = useState<VerificationClaim[]>([]);
   const [loadingClaims, setLoadingClaims] = useState(true);
   const [lostItems, setLostItems] = useState<LostFoundItem[]>([]);
@@ -316,13 +307,15 @@ export default function VerificationDashboardPage() {
   const [, setTick] = useState(0);
   const minMeetingDateTime = getCurrentMinuteDateTimeLocal();
 
-  const loadClaims = async () => {
+  const loadClaims = async (showError = true) => {
     try {
       setLoadingClaims(true);
       const response = await api.get("/claims");
       setClaims((response.data?.claims ?? []) as VerificationClaim[]);
     } catch {
-      toast.error("Failed to load verification claims.");
+      if (showError) {
+        toast.error("Failed to load verification claims.");
+      }
     } finally {
       setLoadingClaims(false);
     }
@@ -412,6 +405,14 @@ export default function VerificationDashboardPage() {
 
   useEffect(() => {
     void loadClaims();
+  }, []);
+
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      void loadClaims(false);
+    }, 15000);
+
+    return () => clearInterval(pollTimer);
   }, []);
 
   useEffect(() => {
@@ -1022,9 +1023,122 @@ export default function VerificationDashboardPage() {
             {activeTab === "verification" && (
               <section className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">Claims Under Verification</h2>
+                  <h2 className="text-xl font-semibold">Verification Queue</h2>
                 </div>
 
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setVerificationView("auto")}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                      verificationView === "auto"
+                        ? "bg-white text-[#0A66C2] shadow"
+                        : "text-gray-700 hover:bg-white/70"
+                    }`}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerificationView("manual")}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                      verificationView === "manual"
+                        ? "bg-white text-[#0A66C2] shadow"
+                        : "text-gray-700 hover:bg-white/70"
+                    }`}
+                  >
+                    Manual
+                  </button>
+                </div>
+
+                {verificationView === "auto" ? (
+                <section className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <h3 className="text-base font-semibold text-blue-900">Auto Claim Submissions</h3>
+                  <p className="mt-1 text-xs text-blue-800">
+                    Claims created from the user Claim button appear here automatically.
+                  </p>
+
+                  {loadingClaims ? (
+                    <div className="mt-3 rounded-xl border border-blue-200 bg-white p-4 text-sm text-gray-600">Loading auto claim submissions...</div>
+                  ) : pendingClaims.length === 0 ? (
+                    <div className="mt-3 rounded-xl border border-blue-200 bg-white p-4 text-sm text-gray-600">No auto claim submissions yet.</div>
+                  ) : (
+                    <div className="mt-3 space-y-4">
+                      {pendingClaims.map((claim) => {
+                        const remaining = Math.max(new Date(claim.verificationEndsAt).getTime() - Date.now(), 0);
+                        const canSchedule = remaining === 0;
+
+                        return (
+                          <article key={claim._id} className="rounded-xl border border-gray-200 bg-white p-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div>
+                                <h3 className="text-lg font-semibold">{claim.itemId?.itemTitle ?? "Item"}</h3>
+                                <p className="text-sm text-gray-700">Verification ID: {claim.verificationId}</p>
+                                <p className="text-sm text-gray-700">Claimers Count: {claim.claimerCount}</p>
+                                <p className="text-sm text-gray-700">
+                                  Claimer: {claim.claimantName} ({claim.claimantEmail})
+                                </p>
+                              </div>
+                              <div>
+                                {claim.serialNumber ? (
+                                  <p className="text-sm text-gray-700">Serial Number: {claim.serialNumber}</p>
+                                ) : null}
+                                {claim.lostPlace ? (
+                                  <p className="text-sm text-gray-700">Lost Place: {claim.lostPlace}</p>
+                                ) : null}
+                                <p className="text-sm text-gray-700">Countdown: {formatCountdown(remaining)}</p>
+                                <p className="text-sm text-gray-700">Ends At: {new Date(claim.verificationEndsAt).toLocaleString()}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                                Submitted verification response
+                              </p>
+                              <p className="mt-2 text-xs font-semibold text-indigo-900">Question: {claim.uniqueQuestion}</p>
+                              <p className="mt-1 text-xs text-indigo-900">Answer: {claim.uniqueAnswer}</p>
+                            </div>
+
+                            <details className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2">
+                              <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-gray-700">
+                                Options
+                              </summary>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  disabled={resolvingClaimId === claim._id}
+                                  onClick={() => void handleResolveClaim(claim._id, "approve")}
+                                  className="rounded-md border border-green-300 bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {resolvingClaimId === claim._id ? "Saving..." : "Approve Owner"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={resolvingClaimId === claim._id}
+                                  onClick={() => void handleResolveClaim(claim._id, "reject")}
+                                  className="rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {resolvingClaimId === claim._id ? "Saving..." : "Reject Claim"}
+                                </button>
+                              </div>
+                            </details>
+
+                            {canSchedule ? (
+                              <MeetingForm claim={claim} onScheduled={loadClaims} />
+                            ) : (
+                              <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                Meeting details can be sent only after the 48-hour countdown ends.
+                              </p>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+                ) : null}
+
+                {verificationView === "manual" ? (
                 <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <h3 className="text-base font-semibold">Items In Manual 48-Hour Pending Queue</h3>
                   {queuedPendingItems.length === 0 ? (
@@ -1043,147 +1157,62 @@ export default function VerificationDashboardPage() {
                           <p className="text-xs text-gray-700">
                             Ends At: {item.claimableQueueEndsAt ? new Date(item.claimableQueueEndsAt).toLocaleString() : "-"}
                           </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void handleStopQueue(item)}
-                              disabled={stoppingQueueItemId === item._id}
-                              className="rounded-md border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {stoppingQueueItemId === item._id
-                                ? "Stopping..."
-                                : "Stop"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handlePauseQueue(item)}
-                              disabled={pausingQueueItemId === item._id || Boolean(item.claimableQueuePaused)}
-                              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {pausingQueueItemId === item._id ? "Pausing..." : "Pause"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleResumeQueue(item)}
-                              disabled={resumingQueueItemId === item._id || !Boolean(item.claimableQueuePaused)}
-                              className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {resumingQueueItemId === item._id ? "Resuming..." : "Resume"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleSendToReclaim(item)}
-                              disabled={sendingReclaimItemId === item._id}
-                              className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {sendingReclaimItemId === item._id ? "Sending..." : "Send To Reclaim"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={manualApprovingItemId === item._id}
-                              onClick={() => void handleManualApproveFromQueue(item)}
-                              className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {manualApprovingItemId === item._id ? "Approving..." : "Approve To Claims Hub"}
-                            </button>
-                          </div>
+                          <details className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2">
+                            <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-gray-700">
+                              Options
+                            </summary>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void handleStopQueue(item)}
+                                disabled={stoppingQueueItemId === item._id}
+                                className="rounded-md border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {stoppingQueueItemId === item._id
+                                  ? "Stopping..."
+                                  : "Stop"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handlePauseQueue(item)}
+                                disabled={pausingQueueItemId === item._id || Boolean(item.claimableQueuePaused)}
+                                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {pausingQueueItemId === item._id ? "Pausing..." : "Pause"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleResumeQueue(item)}
+                                disabled={resumingQueueItemId === item._id || !Boolean(item.claimableQueuePaused)}
+                                className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {resumingQueueItemId === item._id ? "Resuming..." : "Resume"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleSendToReclaim(item)}
+                                disabled={sendingReclaimItemId === item._id}
+                                className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {sendingReclaimItemId === item._id ? "Sending..." : "Send To Reclaim"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={manualApprovingItemId === item._id}
+                                onClick={() => void handleManualApproveFromQueue(item)}
+                                className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {manualApprovingItemId === item._id ? "Approving..." : "Approve To Claims Hub"}
+                              </button>
+                            </div>
+                          </details>
                         </article>
                       ))}
                     </div>
                   )}
                 </section>
+                ) : null}
 
-                {loadingClaims ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">Loading verification queue...</div>
-                ) : pendingClaims.length === 0 ? null : (
-                  <div className="space-y-4">
-                    {pendingClaims.map((claim) => {
-                      const remaining = Math.max(new Date(claim.verificationEndsAt).getTime() - Date.now(), 0);
-                      const canSchedule = remaining === 0;
-                      const needsExtraQuestions = claim.claimerCount > 1;
-                      const uniqueQuestions = getUniqueVerificationQuestions(claim);
-
-                      return (
-                        <article key={claim._id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div>
-                              <h3 className="text-lg font-semibold">{claim.itemId?.itemTitle ?? "Item"}</h3>
-                              <p className="text-sm text-gray-700">Verification ID: {claim.verificationId}</p>
-                              <p className="text-sm text-gray-700">Claimers Count: {claim.claimerCount}</p>
-                              <p className="text-sm text-gray-700">
-                                Claimer: {claim.claimantName} ({claim.claimantEmail})
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-700">Serial Number: {claim.serialNumber}</p>
-                              <p className="text-sm text-gray-700">Lost Place: {claim.lostPlace}</p>
-                              <p className="text-sm text-gray-700">Countdown: {formatCountdown(remaining)}</p>
-                              <p className="text-sm text-gray-700">Ends At: {new Date(claim.verificationEndsAt).toLocaleString()}</p>
-                            </div>
-                          </div>
-
-                          {needsExtraQuestions ? (
-                            <div className="mt-3 rounded-md border border-indigo-200 bg-indigo-50 p-3">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                                Multiple users claimed this item. Ask unique verification questions before approval.
-                              </p>
-                              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-indigo-900">
-                                {uniqueQuestions.map((question) => (
-                                  <li key={question}>{question}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-
-                          {canSchedule ? (
-                            <MeetingForm claim={claim} onScheduled={loadClaims} />
-                          ) : (
-                            <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                              Meeting details can be sent only after the 48-hour countdown ends.
-                            </p>
-                          )}
-                        </article>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div>
-                  <h2 className="mb-3 text-xl font-semibold">Claim Verified Category</h2>
-                  {claimVerifiedClaims.length === 0 ? (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">No claim verified entries yet.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {claimVerifiedClaims.map((claim) => (
-                        <article key={claim._id} className="rounded-xl border border-green-200 bg-green-50 p-4">
-                          <h3 className="text-lg font-semibold text-black">{claim.itemId?.itemTitle ?? "Item"}</h3>
-                          <p className="text-sm text-gray-800">Verification ID: {claim.verificationId}</p>
-                          <p className="text-sm text-gray-800">
-                            Meeting: {claim.meetingLocation ?? "-"} at {claim.meetingDateTime ? new Date(claim.meetingDateTime).toLocaleString() : "-"}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={resolvingClaimId === claim._id}
-                              onClick={() => void handleResolveClaim(claim._id, "approve")}
-                              className="rounded-md border border-green-300 bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {resolvingClaimId === claim._id ? "Saving..." : "Approve Owner"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={resolvingClaimId === claim._id}
-                              onClick={() => void handleResolveClaim(claim._id, "reject")}
-                              className="rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {resolvingClaimId === claim._id ? "Saving..." : "Reject Claim"}
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </section>
             )}
 
