@@ -166,7 +166,7 @@ function MeetingForm({
         value={meetingDateTime}
         onChange={(event) => setMeetingDateTime(event.target.value)}
         min={minMeetingDateTime}
-        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
+        className="tc-light-datetime w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black [color-scheme:light] outline-none focus:border-[#0A66C2]"
       />
       <button
         type="submit"
@@ -312,6 +312,7 @@ export default function VerificationDashboardPage() {
   const [meetingFormDateTime, setMeetingFormDateTime] = useState("");
   const [savingMeetingClaimId, setSavingMeetingClaimId] = useState<string | null>(null);
   const [resolvingClaimId, setResolvingClaimId] = useState<string | null>(null);
+  const [removingClaimId, setRemovingClaimId] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const minMeetingDateTime = getCurrentMinuteDateTimeLocal();
 
@@ -748,6 +749,32 @@ export default function VerificationDashboardPage() {
     }
   };
 
+  const handleRemoveClaim = async (
+    claimId: string,
+    status: "approved" | "rejected"
+  ) => {
+    const confirmed = window.confirm(
+      status === "approved"
+        ? "Remove this approved claim? The item may be moved back to reclaim/open state if it is linked to this owner."
+        : "Remove this rejected claim?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setRemovingClaimId(claimId);
+      await api.delete(`/claims/${claimId}`);
+      toast.success("Claim removed.");
+      await loadClaims();
+      await loadLostFoundItems();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error ?? "Failed to remove claim.");
+    } finally {
+      setRemovingClaimId(null);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -755,14 +782,14 @@ export default function VerificationDashboardPage() {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-white py-6 pr-4 text-black sm:pr-6">
+    <div className="tc-verification-dashboard h-screen overflow-hidden py-6 pr-4 text-black sm:pr-6">
       <div className="flex h-full w-full gap-6">
-        <aside className="sticky top-6 hidden h-fit w-72 shrink-0 rounded-r-3xl border border-gray-200 bg-gray-100 p-4 shadow-xl lg:block">
+        <aside className="tc-vd-sidebar sticky top-6 hidden h-fit w-72 shrink-0 rounded-r-3xl border border-gray-200 bg-gray-100 p-4 shadow-xl lg:block">
           <div className="space-y-3">
             <button
               type="button"
               onClick={() => setActiveTab("overview")}
-              className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+              className={`tc-vd-nav-btn flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
                 activeTab === "overview"
                   ? "border-blue-100 bg-white text-[#0A66C2] shadow-xl"
                   : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
@@ -776,7 +803,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("verification")}
-              className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+              className={`tc-vd-nav-btn flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
                 activeTab === "verification"
                   ? "border-emerald-100 bg-white text-[#0A66C2] shadow-xl"
                   : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
@@ -790,7 +817,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("management")}
-              className={`flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+              className={`tc-vd-nav-btn flex w-full items-center gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
                 activeTab === "management"
                   ? "border-violet-100 bg-white text-[#0A66C2] shadow-xl"
                   : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
@@ -804,7 +831,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("notifications")}
-              className={`flex w-full items-center justify-between gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
+              className={`tc-vd-nav-btn flex w-full items-center justify-between gap-4 rounded-2xl border px-5 py-5 text-left text-lg font-semibold transition ${
                 activeTab === "notifications"
                   ? "border-amber-100 bg-white text-[#0A66C2] shadow-xl"
                   : "border-transparent bg-white/40 text-gray-700 shadow-md hover:bg-white/80"
@@ -825,11 +852,11 @@ export default function VerificationDashboardPage() {
           </div>
         </aside>
 
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="tc-vd-main flex flex-1 flex-col overflow-hidden">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Verification Dashboard</h1>
-              <p className="text-sm text-gray-600">Manage claim verification with 48-hour countdowns.</p>
+              <h1 className="tc-vd-title text-3xl font-bold tracking-tight">Verification Dashboard</h1>
+              <p className="text-sm text-slate-600">Manage claim verification with 48-hour countdowns.</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -839,13 +866,13 @@ export default function VerificationDashboardPage() {
                   void loadLostFoundItems();
                   void loadNotifications();
                 }}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100"
+                className="tc-vd-action-btn rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100"
               >
                 Refresh
               </button>
               <button
                 onClick={handleLogout}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-black hover:bg-gray-200"
+                className="tc-vd-action-btn rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-black hover:bg-gray-200"
               >
                 Log out
               </button>
@@ -856,7 +883,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("overview")}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`tc-vd-mobile-tab rounded-lg px-3 py-2 text-sm font-medium transition ${
                 activeTab === "overview" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
               }`}
             >
@@ -865,7 +892,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("verification")}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`tc-vd-mobile-tab rounded-lg px-3 py-2 text-sm font-medium transition ${
                 activeTab === "verification" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
               }`}
             >
@@ -874,7 +901,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("management")}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`tc-vd-mobile-tab rounded-lg px-3 py-2 text-sm font-medium transition ${
                 activeTab === "management" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
               }`}
             >
@@ -883,7 +910,7 @@ export default function VerificationDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("notifications")}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`tc-vd-mobile-tab rounded-lg px-3 py-2 text-sm font-medium transition ${
                 activeTab === "notifications" ? "bg-white text-[#0A66C2] shadow" : "text-gray-700"
               }`}
             >
@@ -891,7 +918,7 @@ export default function VerificationDashboardPage() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-1">
+          <div className="tc-vd-scroll flex-1 overflow-y-auto pr-1">
             {activeTab === "overview" && (
               <section className="space-y-6">
                 <section className="grid gap-4 sm:grid-cols-3">
@@ -1203,6 +1230,14 @@ export default function VerificationDashboardPage() {
                             >
                               {hasRealMeeting ? "Edit Meeting" : "Add Meeting"}
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveClaim(claim._id, "approved")}
+                              disabled={removingClaimId === claim._id}
+                              className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {removingClaimId === claim._id ? "Removing..." : "Remove"}
+                            </button>
                           </div>
 
                           {editingMeetingClaimId === claim._id ? (
@@ -1224,7 +1259,7 @@ export default function VerificationDashboardPage() {
                                 value={meetingFormDateTime}
                                 onChange={(event) => setMeetingFormDateTime(event.target.value)}
                                 min={minMeetingDateTime}
-                                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-[#0A66C2]"
+                                className="tc-light-datetime w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black [color-scheme:light] outline-none focus:border-[#0A66C2]"
                               />
                               <div className="sm:col-span-2 flex gap-2">
                                 <button
@@ -1269,6 +1304,16 @@ export default function VerificationDashboardPage() {
                           <p className="text-xs text-gray-700">Claimer: {claim.claimantName} ({claim.claimantEmail})</p>
                           <p className="text-xs text-gray-700">Verification ID: {claim.verificationId}</p>
                           <p className="text-xs text-gray-700">Status: Rejected</p>
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveClaim(claim._id, "rejected")}
+                              disabled={removingClaimId === claim._id}
+                              className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {removingClaimId === claim._id ? "Removing..." : "Remove"}
+                            </button>
+                          </div>
                         </article>
                       ))}
                     </div>

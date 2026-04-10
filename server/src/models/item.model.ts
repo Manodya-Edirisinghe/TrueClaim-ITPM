@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IItem extends Document {
   itemType: 'lost' | 'found';
@@ -9,6 +9,15 @@ export interface IItem extends Document {
   location: string;
   contactNumber: string;
   imageUrl?: string;
+  imagePublicId?: string;
+  hasOwner: boolean;
+  ownerClaimId?: Types.ObjectId | null;
+  claimStatus: 'open' | 'under_verification' | 'claim_verified' | 'claimed';
+  needsOwnerReclaim: boolean;
+  claimableQueueStartedAt?: Date | null;
+  claimableQueueEndsAt?: Date | null;
+  claimableQueuePaused: boolean;
+  claimableQueueRemainingMs?: number | null;
   // Who submitted this item — used for messaging.
   // FUTURE UPGRADE: Replace with real auth user ID.
   ownerId?: string;
@@ -56,6 +65,50 @@ const itemSchema = new Schema<IItem>(
     },
     imageUrl: {
       type: String,
+      default: null,
+    },
+    imagePublicId: {
+      type: String,
+      default: null,
+    },
+    hasOwner: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    ownerClaimId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Claim',
+      default: null,
+      index: true,
+    },
+    claimStatus: {
+      type: String,
+      enum: ['open', 'under_verification', 'claim_verified', 'claimed'],
+      default: 'open',
+      index: true,
+    },
+    needsOwnerReclaim: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    claimableQueueStartedAt: {
+      type: Date,
+      default: null,
+    },
+    claimableQueueEndsAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    claimableQueuePaused: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    claimableQueueRemainingMs: {
+      type: Number,
       default: null,
     },
     ownerId: {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAuth } from '../middlewares/auth.middleware';
 import {
   sendMessage,
   getMessagesByItem,
@@ -13,13 +14,13 @@ import {
 const router = Router();
 
 // Messages
-router.post('/send', sendMessage);
-router.get('/:itemId', getMessagesByItem);
+router.post('/send', requireAuth, sendMessage);
+router.get('/:itemId', requireAuth, getMessagesByItem);
 
 export default router;
 
 // Conversation routes (mounted separately in server.ts)
 export const conversationRouter = Router();
-conversationRouter.get('/', getConversations);
-conversationRouter.get('/:conversationId', getConversationById);
-conversationRouter.delete('/:conversationId', deleteConversation);
+conversationRouter.get('/', requireAuth, getConversations);
+conversationRouter.get('/:conversationId', requireAuth, getConversationById);
+conversationRouter.delete('/:conversationId', requireAuth, deleteConversation);

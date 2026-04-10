@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { MessageCircle } from 'lucide-react';
+import { ArrowUpRight, MessageCircle } from 'lucide-react';
 import { getCurrentUserId } from '@/lib/auth';
 
 type MatchResult = {
@@ -12,23 +13,29 @@ type MatchResult = {
   date: string;
   image: string;
   matchScore: number;
-  // Owner ID for messaging — falls back to the item ID as a pseudo-owner
+  // Owner ID for messaging.
   ownerId?: string;
 };
 
 type ResultCardProps = {
   item: MatchResult;
   isHighlighted?: boolean;
+  claimHref?: string;
+  claimLabel?: string;
 };
 
-export default function ResultCard({ item, isHighlighted = false }: ResultCardProps) {
+export default function ResultCard({
+  item,
+  isHighlighted = false,
+  claimHref,
+  claimLabel = 'Claim',
+}: ResultCardProps) {
   const router = useRouter();
 
   const handleMessageOwner = () => {
-    // Use the ownerId if available, otherwise use the item's id as a
-    // deterministic pseudo-owner so conversations are still scoped per item.
-    const receiverId = item.ownerId ?? `owner_${item.id}`;
+    const receiverId = item.ownerId;
     const currentUserId = getCurrentUserId();
+    if (!receiverId) return;
 
     // Don't let a user message themselves
     if (receiverId === currentUserId) return;
@@ -78,6 +85,15 @@ export default function ResultCard({ item, isHighlighted = false }: ResultCardPr
           <button className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
             View Details
           </button>
+          {claimHref ? (
+            <Link
+              href={claimHref}
+              className="group/claim inline-flex items-center gap-1.5 rounded-lg border border-amber-200/35 bg-gradient-to-b from-amber-300/18 to-amber-500/14 px-3 py-2 text-xs font-semibold tracking-wide text-amber-100 shadow-[0_6px_18px_rgba(251,191,36,0.18)] ring-1 ring-inset ring-amber-100/10 backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:border-amber-100/60 hover:from-amber-300/26 hover:to-amber-500/22 hover:text-amber-50"
+            >
+              {claimLabel}
+              <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover/claim:translate-x-0.5 group-hover/claim:-translate-y-0.5" />
+            </Link>
+          ) : null}
           <button
             onClick={handleMessageOwner}
             className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-300 transition hover:bg-blue-500/20"

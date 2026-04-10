@@ -1,23 +1,30 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { getMatchLevel, matchItems, type MatchResult, type MatchableItem } from '@/lib/matching-utils';
 import api, { resolveImageUrl } from '@/lib/axios';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUserId } from '@/lib/auth';
 import { toast } from 'sonner';
+import MatchingForm, { type MatchingFilters } from '@/components/matching/MatchingForm';
+import SummaryCard from '@/components/matching/SummaryCard';
+import ItemCard from '@/components/matching/ItemCard';
+import Pagination from '@/components/matching/Pagination';
 
 type MatchItem = MatchableItem & {
   id: string;
   itemType: 'lost' | 'found';
   title: string;
+  date?: string;
   description: string;
   category: string;
   location: string;
   image: string;
   contactNumber?: string;
   ownerId?: string;
+  ownerDisplayName?: string;
+  ownerAvatarUrl?: string;
 };
 
 type DisplayMatchItem = MatchResult<MatchItem>;
@@ -33,14 +40,25 @@ type ApiItem = {
   itemType: 'lost' | 'found';
   itemTitle: string;
   description?: string;
+  time?: string;
   itemCategory: string;
   location: string;
   imageUrl?: string | null;
   contactNumber?: string;
   ownerId?: string;
+  ownerDisplayName?: string;
+  ownerAvatarUrl?: string | null;
 };
 
 const FALLBACK_IMAGE = '/placeholder.png';
+const ITEMS_PER_PAGE = 12;
+
+function formatReportedDate(value?: string): string | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString();
+}
 
 function getCounterpartType(type: 'lost' | 'found'): 'lost' | 'found' {
   return type === 'lost' ? 'found' : 'lost';
@@ -113,14 +131,28 @@ export default function MatchingPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearchedWithImage, setHasSearchedWithImage] = useState(false);
   const [results, setResults] = useState<DisplayMatchItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<DisplayMatchItem | null>(null);
-  const isAIUsed = Boolean(uploadedImage);
   const showImageSearchLoading = isSearching && Boolean(uploadedImage);
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(items.map((item) => item.category)))],
     [items]
   );
+
+  const totalPages = Math.max(1, Math.ceil(results.length / ITEMS_PER_PAGE));
+
+  const paginatedResults = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    return results.slice(start, end);
+  }, [results, currentPage]);
+
+  const hasActiveSearch =
+    filters.keyword.trim().length > 0 ||
+    filters.location.trim().length > 0 ||
+    filters.category !== 'All' ||
+    hasSearchedWithImage;
 
   useEffect(() => {
     let isMounted = true;
@@ -138,11 +170,14 @@ export default function MatchingPage() {
           itemType: entry.itemType,
           title: entry.itemTitle,
           description: entry.description ?? '',
+          date: formatReportedDate(entry.time),
           category: entry.itemCategory,
           location: entry.location,
           image: resolveImageUrl(entry.imageUrl) ?? FALLBACK_IMAGE,
           contactNumber: entry.contactNumber,
           ownerId: entry.ownerId,
+          ownerDisplayName: entry.ownerDisplayName ?? 'Item Owner',
+          ownerAvatarUrl: resolveImageUrl(entry.ownerAvatarUrl) ?? undefined,
         }));
 
         if (!isMounted) return;
@@ -180,6 +215,10 @@ export default function MatchingPage() {
   }, []);
 
   useEffect(() => {
+    setCurrentPage(1);
+  }, [results]);
+
+  useEffect(() => {
     const nextFilters: SearchFilters = {
       keyword: initialKeyword,
       category: initialCategory,
@@ -199,9 +238,7 @@ export default function MatchingPage() {
     }
   }, [initialKeyword, initialCategory, initialLocation, items]);
 
-  const onSubmitSearch = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const onSubmitSearch = async () => {
     const searchingWithImage = Boolean(uploadedImage);
     setIsSearching(searchingWithImage);
     setFilters(draftFilters);
@@ -244,12 +281,48 @@ export default function MatchingPage() {
     setImagePreviewUrl(URL.createObjectURL(file));
   };
 
+  const onClearImage = () => {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setUploadedImage(null);
+    setImagePreviewUrl(null);
+  };
+
+  const onClearSearch = () => {
+    const resetFilters: SearchFilters = {
+      keyword: '',
+      category: 'All',
+      location: '',
+    };
+
+    onClearImage();
+    setShowAdvanced(false);
+    setHasSearchedWithImage(false);
+    setIsSearching(false);
+    setFilters(resetFilters);
+    setDraftFilters(resetFilters);
+    setCurrentPage(1);
+
+    setResults(
+      applySecondaryFilters(
+        toBaselineResults(filterItemsByKeyword(items, '')),
+        resetFilters
+      )
+    );
+
+    router.replace('/matching');
+  };
+
   const onMessageOwner = () => {
     if (!selectedItem) return;
 
-    const receiverId = selectedItem.ownerId ?? `owner_${selectedItem.id}`;
+    const receiverId = selectedItem.ownerId;
     const currentUserId = getCurrentUserId();
-    if (!receiverId) return;
+    if (!receiverId) {
+      toast.error('Item owner is unavailable for messaging.');
+      return;
+    }
     if (receiverId === currentUserId) {
       toast.info('This item is submitted by you');
       return;
@@ -261,244 +334,109 @@ export default function MatchingPage() {
   return (
     <main className="min-h-screen bg-[#05070c] pt-24 text-white">
       <section className="mx-auto w-full max-w-7xl px-5 pb-12 lg:px-8">
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Item Matching</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/65 md:text-base">
-            Search with quick filters on the left and review ranked matching cards on the right.
+            Find likely matches quickly with structured filters and optional AI image assistance.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-          <aside className="lg:col-span-4">
-            <form
-              onSubmit={onSubmitSearch}
-              className="sticky top-28 rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-lg shadow-black/20"
-            >
-              <h2 className="mb-4 text-lg font-semibold text-white">Search Filters</h2>
+        <div className="relative grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.2fr_auto_0.9fr]">
+          <MatchingForm
+            filters={draftFilters as MatchingFilters}
+            categories={categories}
+            isSearching={isSearching}
+            showAdvanced={showAdvanced}
+            isImageSelected={Boolean(uploadedImage)}
+            imagePreviewUrl={imagePreviewUrl}
+            onFiltersChange={(next) => setDraftFilters(next)}
+            onSearch={onSubmitSearch}
+            onClear={onClearSearch}
+            onToggleAdvanced={() => setShowAdvanced((prev) => !prev)}
+            onImageSelect={onImageSelect}
+            onClearImage={onClearImage}
+          />
 
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/80">Keyword</label>
-                  <input
-                    type="text"
-                    value={draftFilters.keyword}
-                    onChange={(event) =>
-                      setDraftFilters((prev) => ({ ...prev, keyword: event.target.value }))
-                    }
-                    placeholder="e.g., Brown wallet"
-                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/80">Category</label>
-                  <select
-                    value={draftFilters.category}
-                    onChange={(event) =>
-                      setDraftFilters((prev) => ({ ...prev, category: event.target.value }))
-                    }
-                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-400"
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category} className="text-black">
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-white/80">Location</label>
-                  <input
-                    type="text"
-                    value={draftFilters.location}
-                    onChange={(event) =>
-                      setDraftFilters((prev) => ({ ...prev, location: event.target.value }))
-                    }
-                    placeholder="e.g., main library"
-                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-blue-400"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSearching}
-                  className="w-full rounded-lg bg-[#6C3FF5] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5b30db] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSearching ? 'Searching...' : 'Search'}
-                </button>
-
-                <div className="rounded-xl border border-white/10 bg-white/[0.03]">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvanced((prev) => !prev)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left"
-                  >
-                    <span className="text-sm font-semibold text-white">Advanced Filters</span>
-                    <ChevronDown
-                      className={`h-4 w-4 text-white/70 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-
-                  {showAdvanced && (
-                    <div className="space-y-3 border-t border-white/10 px-4 py-4">
-                      <label className="block text-sm font-medium text-white/80">Upload Image</label>
-                      <input
-                        type="file"
-                        accept="image/png, image/jpeg, image/jpg"
-                        onChange={onImageSelect}
-                        className="block w-full rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-blue-500/20 file:px-3 file:py-1 file:text-sm file:font-medium file:text-blue-200"
-                      />
-
-                      {isAIUsed ? (
-                        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
-                          <Sparkles className="h-3.5 w-3.5" />
-                          Powered by AI
-                        </div>
-                      ) : null}
-
-                      {uploadedImage ? (
-                        <p className="text-xs text-cyan-200/90">Analyzing image...</p>
-                      ) : null}
-
-                      {imagePreviewUrl ? (
-                        <img
-                          src={imagePreviewUrl}
-                          alt="Uploaded reference"
-                          className="h-36 w-full rounded-lg object-cover"
-                        />
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </form>
-          </aside>
-
-          <section className="lg:col-span-8">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Matching Results</h2>
-              <p className="text-sm text-white/65">
-                {results.length} result{results.length === 1 ? '' : 's'}
-              </p>
+          <div className="hidden items-center justify-center px-2 pt-20 lg:flex">
+            <div className="flex items-center gap-1">
+              <div className="h-[2px] w-16 bg-gradient-to-r from-transparent to-[#6C3FF5]" />
+              <ArrowRight className="h-8 w-8 text-[#6C3FF5]" />
+              <div className="h-[2px] w-16 bg-gradient-to-l from-transparent to-[#6C3FF5]" />
             </div>
+          </div>
 
-            {isLoadingItems ? (
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12 text-center text-sm text-white/65">
-                Loading items...
-              </div>
-            ) : itemsError ? (
-              <div className="rounded-xl border border-red-300/30 bg-red-500/10 px-6 py-12 text-center text-sm text-red-200">
-                {itemsError}
-              </div>
-            ) : showImageSearchLoading ? (
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12">
-                <div className="mx-auto max-w-sm text-center">
-                  <p className="text-sm text-white/75">Analyzing image...</p>
-                  <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" />
-                  </div>
+          <SummaryCard
+            keyword={filters.keyword}
+            category={filters.category}
+            location={filters.location}
+            imageSearchUsed={hasSearchedWithImage}
+          />
+        </div>
+
+        <section className="mt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-white">
+              {hasActiveSearch ? 'Matching Results' : 'All items'}
+            </h2>
+            <p className="text-sm text-white/65">
+              {results.length} result{results.length === 1 ? '' : 's'}
+            </p>
+          </div>
+
+          {isLoadingItems ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12 text-center text-sm text-white/65">
+              Loading items...
+            </div>
+          ) : itemsError ? (
+            <div className="rounded-xl border border-red-300/30 bg-red-500/10 px-6 py-12 text-center text-sm text-red-200">
+              {itemsError}
+            </div>
+          ) : showImageSearchLoading ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12">
+              <div className="mx-auto max-w-sm text-center">
+                <p className="text-sm text-white/75">Analyzing image...</p>
+                <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" />
                 </div>
               </div>
-            ) : results.length === 0 ? (
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12 text-center text-sm text-white/65">
-                No matching items found.
+            </div>
+          ) : results.length === 0 ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-12 text-center text-sm text-white/65">
+              No matching items found.
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {paginatedResults.map((item) => (
+                  <ItemCard
+                    key={item.id}
+                    item={{
+                      id: item.id,
+                      title: item.title,
+                      image: item.image,
+                      location: item.location,
+                      date: item.date,
+                      itemType: item.itemType,
+                      matchLevel: item.matchLevel,
+                      matchPercentage: item.matchPercentage,
+                      isLowConfidenceMatch: item.isLowConfidenceMatch,
+                      ownerDisplayName: item.ownerDisplayName,
+                      ownerAvatarUrl: item.ownerAvatarUrl,
+                    }}
+                    showImageMatchDetails={hasSearchedWithImage}
+                    onOpen={() => setSelectedItem(item)}
+                  />
+                ))}
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {results.map((item) => {
-                  const level = item.matchLevel;
-                  const confidence = item.matchPercentage;
-                  const confidenceClassName =
-                    level === 'High Match'
-                      ? 'text-emerald-300 bg-emerald-500/15 border-emerald-400/35'
-                      : level === 'Medium Match'
-                        ? 'text-amber-300 bg-amber-500/15 border-amber-400/35'
-                        : 'text-rose-300 bg-rose-500/15 border-rose-400/35';
-                  const levelClassName =
-                    level === 'High Match'
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-400/35'
-                      : level === 'Medium Match'
-                        ? 'bg-amber-500/15 text-amber-300 border-amber-400/35'
-                        : 'bg-rose-500/15 text-rose-300 border-rose-400/35';
-                  const indicatorClassName =
-                    level === 'High Match'
-                      ? 'bg-emerald-400'
-                      : level === 'Medium Match'
-                        ? 'bg-amber-400'
-                        : 'bg-rose-400';
 
-                  return (
-                    <article
-                      key={item.id}
-                      onClick={() => setSelectedItem(item)}
-                      className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:border-blue-400/40 hover:bg-white/[0.06]"
-                    >
-                      <div className="relative">
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            e.currentTarget.src = '/placeholder.png';
-                          }}
-                          className="h-44 w-full object-cover"
-                        />
-                        {hasSearchedWithImage ? (
-                          <span className="absolute left-3 top-3 rounded-full border border-cyan-300/40 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
-                            AI Suggested
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="space-y-3 p-4">
-                        <h3 className="line-clamp-1 text-lg font-semibold text-white">{item.title}</h3>
-
-                        {hasSearchedWithImage && item.isLowConfidenceMatch ? (
-                          <div className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
-                            Low confidence match
-                          </div>
-                        ) : null}
-
-                        <p className="text-sm text-white/70">Location: {item.location}</p>
-
-                        {hasSearchedWithImage ? (
-                          <div className={`rounded-xl border px-3 py-2 ${confidenceClassName}`}>
-                            <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide">
-                              <span>Match Confidence</span>
-                              <span>{confidence}%</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-black/20">
-                              <div
-                                className={`h-full rounded-full ${
-                                  level === 'High Match'
-                                    ? 'bg-emerald-300'
-                                    : level === 'Medium Match'
-                                      ? 'bg-amber-300'
-                                      : 'bg-rose-300'
-                                }`}
-                                style={{ width: `${confidence}%` }}
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {hasSearchedWithImage ? (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className={`h-2.5 w-2.5 rounded-full ${indicatorClassName}`} />
-                            <span className="font-medium text-white/75">Match Level:</span>
-                            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${levelClassName}`}>
-                              {level}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </>
+          )}
+        </section>
       </section>
 
       {selectedItem ? (

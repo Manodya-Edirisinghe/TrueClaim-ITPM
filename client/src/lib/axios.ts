@@ -32,14 +32,13 @@ api.interceptors.request.use((config) => {
     delete config.headers['Content-Type'];
   }
 
-  // Attach user identity header for messaging.
-  // FUTURE UPGRADE: Replace with JWT from auth context:
-  // const token = localStorage.getItem('token');
-  // if (token) config.headers.Authorization = `Bearer ${token}`;
+  // Attach JWT token for authenticated requests.
   if (typeof window !== 'undefined') {
-    const userId = localStorage.getItem('trueclaim_user_id');
-    if (userId) {
-      config.headers['x-user-id'] = userId;
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      delete config.headers.Authorization;
     }
   }
   return config;

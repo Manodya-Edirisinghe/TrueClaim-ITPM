@@ -1,12 +1,16 @@
 // ─── Auth Abstraction Layer ──────────────────────────────────────────────────
 // This is the SINGLE place that determines "who is the current user".
-//
-// RIGHT NOW:  Uses a random ID stored in localStorage (no login required).
-// FUTURE:     Replace the body of getCurrentUserId() with your real auth
-//             logic (e.g. decode JWT, read session cookie, call /api/auth/me).
-//             Every other file imports this function — nothing else changes.
+import api from '@/lib/axios';
 
 const STORAGE_KEY = 'trueclaim_user_id';
+const TOKEN_KEY = 'token';
+
+type AuthMeResponse = {
+  user?: {
+    _id: string;
+    fullName?: string;
+  };
+};
 
 /**
  * Returns the current user's unique identifier.
@@ -23,4 +27,30 @@ export function getCurrentUserId(): string {
  */
 export function getCurrentUserName(): string {
   return 'You';
+}
+
+/**
+ * Restores current user identity from JWT on page refresh.
+ */
+export async function restoreUserSession(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+
+  try {
+    const { data } = await api.get<AuthMeResponse>('/auth/me');
+    const userId = data?.user?._id;
+
+    if (userId) {
+      localStorage.setItem(STORAGE_KEY, userId);
+      return;
+    }
+
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Invalid/expired token: clear persisted auth state.
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+  }
 }
