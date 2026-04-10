@@ -37,15 +37,8 @@ api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      delete config.headers['x-user-id'];
     } else {
       delete config.headers.Authorization;
-      const fallbackUserId = localStorage.getItem('trueclaim_user_id');
-      if (fallbackUserId) {
-        config.headers['x-user-id'] = fallbackUserId;
-      } else {
-        delete config.headers['x-user-id'];
-      }
     }
   }
   return config;

@@ -5,7 +5,7 @@ import * as itemController from '../controllers/item.controller';
 
 const router = Router();
 
-router.post('/', upload.single('image'), itemController.createItem);
+router.post('/', requireAuth, upload.single('image'), itemController.createItem);
 
 router.get('/', itemController.getItems);
 
