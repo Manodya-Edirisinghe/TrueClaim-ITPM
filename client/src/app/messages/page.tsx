@@ -21,6 +21,7 @@ export default function MessagesPage() {
   const [activeConv, setActiveConv] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [conversationLoaded, setConversationLoaded] = useState(false);
   const [itemCache, setItemCache] = useState<Record<string, { title: string; image?: string; category?: string }>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -43,12 +44,15 @@ export default function MessagesPage() {
   // ── Fetch messages for a specific item ───────────────────────────────────
   const fetchItemMessages = useCallback(
     async (itemId: string) => {
+      setConversationLoaded(false);
       try {
         const { data } = await api.get(`/messages/${itemId}`);
         setMessages(data.messages ?? []);
+        setConversationLoaded(true);
         return data as ConversationSummary;
       } catch (err) {
         console.error('Failed to fetch messages', err);
+        setConversationLoaded(false);
         return null;
       }
     },
@@ -127,7 +131,7 @@ export default function MessagesPage() {
 
   // ── Send a message ───────────────────────────────────────────────────────
   const handleSend = async (text: string) => {
-    if (!activeConv) return;
+    if (!activeConv || !conversationLoaded) return;
 
     const receiverId =
       activeConv.participants.find((p) => p !== currentUserId) ?? '';
@@ -173,8 +177,13 @@ export default function MessagesPage() {
 
   // ── Select a conversation ──────────────────────────────────────────────
   const handleSelect = async (conv: ConversationSummary) => {
+    setConversationLoaded(false);
     setActiveConv(conv);
     setMessages(conv.messages ?? []);
+    const loadedConv = await fetchItemMessages(conv.itemId);
+    if (loadedConv) {
+      setActiveConv(loadedConv);
+    }
     await enrichItemInfo(conv.itemId);
   };
 
@@ -277,6 +286,7 @@ export default function MessagesPage() {
                 itemImage={activeItemInfo?.image}
                 itemCategory={activeItemInfo?.category}
                 otherUserLabel={otherUserLabel}
+                canType={conversationLoaded}
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-4">

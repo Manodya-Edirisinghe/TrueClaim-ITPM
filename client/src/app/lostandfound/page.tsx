@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { FormInput, FormSelect, FormTextarea } from '@/components/form';
 import { Label } from '@/components/ui/label';
@@ -394,7 +392,7 @@ function LostAndFoundPageContent() {
     const createdId = response.data?.item?._id;
     if (createdId) rememberListingId(createdId);
 
-    router.push('/my-listings');
+    router.push('/profile?tab=listings');
   };
 
   const handleLostSubmit = async (data: FormData) => {
@@ -407,13 +405,6 @@ function LostAndFoundPageContent() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 pt-24 py-6">
-      <Link
-        href="/landing"
-        className="inline-flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))] hover:text-[#0A66C2] transition-colors mb-2"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to home
-      </Link>
       <div className="flex border-b border-[hsl(var(--border))] mb-6">
         <button
           type="button"

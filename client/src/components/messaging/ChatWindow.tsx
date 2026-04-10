@@ -19,6 +19,7 @@ type Props = {
   itemImage?: string;
   itemCategory?: string;
   otherUserLabel: string;
+  canType: boolean;
 };
 
 export default function ChatWindow({
@@ -29,6 +30,7 @@ export default function ChatWindow({
   itemImage,
   itemCategory,
   otherUserLabel,
+  canType,
 }: Props) {
   const [text, setText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -145,12 +147,13 @@ export default function ChatWindow({
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message…"
+          placeholder={canType ? 'Type a message…' : 'Load a conversation to start typing'}
+          disabled={!canType}
           className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-blue-500/60 focus:bg-white/[0.06] focus:ring-1 focus:ring-blue-500/20"
         />
         <button
           type="submit"
-          disabled={!text.trim()}
+          disabled={!canType || !text.trim()}
           className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed"
         >
           <Send className="size-4" />

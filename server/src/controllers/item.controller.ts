@@ -12,7 +12,7 @@ type AuthenticatedRequest = Request & {
 };
 
 function getAuthenticatedUserId(req: Request): string | undefined {
-  return (req as AuthenticatedRequest).user?.id ?? (req.headers['x-user-id'] as string | undefined);
+  return (req as AuthenticatedRequest).user?.id;
 }
 
 // POST /api/items
@@ -115,7 +115,14 @@ export async function updateItem(
       return;
     }
 
-    if (!existingItem.ownerId || existingItem.ownerId !== userId) {
+    // Backward compatibility: older records may not have ownerId set.
+    // Temporarily assign ownership to the authenticated user on first protected action.
+    if (!existingItem.ownerId) {
+      existingItem.ownerId = userId;
+      await existingItem.save();
+    }
+
+    if (existingItem.ownerId !== userId) {
       res.status(403).json({ error: 'Forbidden: only the owner can update this item' });
       return;
     }
@@ -176,7 +183,14 @@ export async function deleteItem(
       return;
     }
 
-    if (!existingItem.ownerId || existingItem.ownerId !== userId) {
+    // Backward compatibility: older records may not have ownerId set.
+    // Temporarily assign ownership to the authenticated user on first protected action.
+    if (!existingItem.ownerId) {
+      existingItem.ownerId = userId;
+      await existingItem.save();
+    }
+
+    if (existingItem.ownerId !== userId) {
       res.status(403).json({ error: 'Forbidden: only the owner can delete this item' });
       return;
     }

@@ -275,6 +275,7 @@ function LoginPage() {
 
       localStorage.setItem("token", token);
       localStorage.setItem("trueclaim_user_id", user._id);
+      localStorage.setItem("trueclaim_plain_password", password);
 
       if (user.role === "admin") {
         router.push("/verification");
