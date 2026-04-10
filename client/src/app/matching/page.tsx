@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ContactRound, MapPin, Shapes, Sparkles } from 'lucide-react';
 import { getMatchLevel, matchItems, type MatchResult, type MatchableItem } from '@/lib/matching-utils';
 import api, { resolveImageUrl } from '@/lib/axios';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -494,10 +494,18 @@ export default function MatchingPage() {
           />
 
           <div className="hidden items-center justify-center px-2 pt-20 lg:flex">
-            <div className="flex items-center gap-1">
-              <div className="h-[2px] w-16 bg-gradient-to-r from-transparent to-[#6C3FF5]" />
-              <ArrowRight className="h-8 w-8 text-[#6C3FF5]" />
-              <div className="h-[2px] w-16 bg-gradient-to-l from-transparent to-[#6C3FF5]" />
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-1">
+                <div className="h-[2px] w-16 bg-gradient-to-r from-transparent to-[#6C3FF5]" />
+                <ArrowRight className="h-8 w-8 text-[#6C3FF5]" />
+                <div className="h-[2px] w-16 bg-gradient-to-l from-transparent to-[#6C3FF5]" />
+              </div>
+              {showAdvanced ? (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md animate-[pulse_4s_ease-in-out_infinite]">
+                  <Sparkles className="h-3 w-3" />
+                  Powered by AI
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -577,7 +585,7 @@ export default function MatchingPage() {
 
       {selectedItem ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0b0f17] shadow-2xl">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/20 bg-white/[0.09] shadow-[0_30px_70px_rgba(2,8,23,0.68)] backdrop-blur-2xl">
             <div className="relative">
               <img
                 src={selectedItem.image}
@@ -588,13 +596,16 @@ export default function MatchingPage() {
                 }}
                 className="h-64 w-full object-cover"
               />
-              <button
-                type="button"
-                onClick={() => setSelectedItem(null)}
-                className="absolute right-3 top-3 rounded-md bg-black/60 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-black/80"
-              >
-                Close
-              </button>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
+
+              <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/40 px-3 py-1.5 backdrop-blur-md">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/70 text-xs font-bold text-white">
+                  {(selectedItem.ownerDisplayName?.trim()?.charAt(0) || 'U').toUpperCase()}
+                </span>
+                <span className="max-w-[160px] truncate text-xs font-semibold text-white/95">
+                  {selectedItem.ownerDisplayName?.trim() || 'Item Owner'}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-4 p-5">
@@ -602,15 +613,18 @@ export default function MatchingPage() {
               <p className="text-sm text-white/75">{selectedItem.description || 'No description available.'}</p>
 
               <div className="grid grid-cols-1 gap-2 text-sm text-white/75 sm:grid-cols-2">
-                <p>
-                  <span className="text-white/45">Category:</span> {selectedItem.category}
+                <p className="inline-flex items-center gap-2">
+                  <Shapes className="h-4 w-4 text-cyan-200" />
+                  <span><span className="text-white/45">Category:</span> {selectedItem.category}</span>
                 </p>
-                <p>
-                  <span className="text-white/45">Location:</span> {selectedItem.location}
+                <p className="inline-flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-cyan-200" />
+                  <span><span className="text-white/45">Location:</span> {selectedItem.location}</span>
                 </p>
                 {selectedItem.contactNumber ? (
-                  <p className="sm:col-span-2">
-                    <span className="text-white/45">Contact:</span> {selectedItem.contactNumber}
+                  <p className="inline-flex items-center gap-2 sm:col-span-2">
+                    <ContactRound className="h-4 w-4 text-cyan-200" />
+                    <span><span className="text-white/45">Contact:</span> {selectedItem.contactNumber}</span>
                   </p>
                 ) : null}
               </div>
@@ -619,21 +633,21 @@ export default function MatchingPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedItem(null)}
-                  className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/5"
+                  className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/85 backdrop-blur-md transition duration-200 hover:scale-[1.02] hover:bg-white/20 hover:shadow-[0_0_18px_rgba(255,255,255,0.18)]"
                 >
                   Close
                 </button>
                 <button
                   type="button"
                   onClick={() => void openClaimModal()}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                  className="rounded-lg border border-amber-200/30 bg-amber-400/22 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur-md transition duration-200 hover:scale-[1.02] hover:brightness-110 hover:shadow-[0_0_18px_rgba(251,191,36,0.45)]"
                 >
                   Claim Item
                 </button>
                 <button
                   type="button"
                   onClick={onMessageOwner}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  className="rounded-lg border border-blue-200/30 bg-blue-500/28 px-4 py-2 text-sm font-semibold text-blue-50 backdrop-blur-md transition duration-200 hover:scale-[1.02] hover:brightness-110 hover:shadow-[0_0_18px_rgba(59,130,246,0.45)]"
                 >
                   Message Owner
                 </button>

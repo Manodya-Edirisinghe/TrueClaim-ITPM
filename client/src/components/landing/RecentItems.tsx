@@ -17,6 +17,7 @@ type ApiItem = {
   contactNumber?: string;
   imageUrl?: string | null;
   ownerId?: string;
+  ownerDisplayName?: string;
 };
 
 const FALLBACK_IMAGE = '/placeholder.png';
@@ -88,6 +89,7 @@ export default function RecentItems() {
                 image: resolveImageUrl(item.imageUrl) ?? FALLBACK_IMAGE,
                 matchScore: 0,
                 ownerId: item.ownerId,
+                ownerDisplayName: item.ownerDisplayName,
               }}
               claimHref={`/matching?claimItemId=${encodeURIComponent(item._id)}`}
               claimLabel="Claim"

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, Sparkles } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 export type MatchingFilters = {
   keyword: string;
@@ -133,11 +133,6 @@ export default function MatchingForm({
                 onChange={onImageSelect}
                 className="block w-full rounded-lg border border-white/15 bg-black/35 px-3 py-2 text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-blue-500/20 file:px-3 file:py-1 file:text-sm file:font-medium file:text-blue-200"
               />
-
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200 animate-[pulse_3.2s_ease-in-out_infinite] opacity-90">
-                <Sparkles className="h-3.5 w-3.5" />
-                Powered by AI
-              </div>
 
               {imagePreviewUrl ? (
                 <div className="space-y-2">
