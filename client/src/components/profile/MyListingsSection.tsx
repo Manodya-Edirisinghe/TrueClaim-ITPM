@@ -24,6 +24,7 @@ const ITEM_CATEGORIES = [
 type ListingItem = {
   _id: string;
   itemType: 'lost' | 'found';
+  createdAt?: string;
   itemTitle: string;
   itemCategory: string;
   description: string;
@@ -236,12 +237,23 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<ListingItem | null>(null);
-  const [filterType, setFilterType] = useState<'lost' | 'found'>('lost');
+  const [filterType, setFilterType] = useState<'all' | 'lost' | 'found'>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
-  const filteredItems = useMemo(
-    () => items.filter((item) => item.itemType === filterType),
-    [items, filterType]
-  );
+  const filteredItems = useMemo(() => {
+    const byType =
+      filterType === 'all'
+        ? items
+        : items.filter((item) => item.itemType === filterType);
+
+    const sorted = [...byType].sort((a, b) => {
+      const aTime = new Date(a.createdAt ?? a.time).getTime();
+      const bTime = new Date(b.createdAt ?? b.time).getTime();
+      return sortOrder === 'newest' ? bTime - aTime : aTime - bTime;
+    });
+
+    return sorted;
+  }, [items, filterType, sortOrder]);
 
   useEffect(() => {
     const loadListings = async () => {
@@ -330,20 +342,30 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
       <h2 className="text-2xl font-semibold text-white">My Listings</h2>
       <p className="mt-1 text-sm text-white/65">Manage items you submitted from this browser.</p>
 
-      <div className="mt-4 max-w-sm space-y-2">
-        <label className="block text-sm font-medium text-white">Filter listings</label>
-        <select
-          value={filterType}
-          onChange={(event) => setFilterType(event.target.value as 'lost' | 'found')}
-          className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#6C3FF5]"
-        >
-          <option value="lost" className="text-black">
-            Lost items - Filter lost items
-          </option>
-          <option value="found" className="text-black">
-            Found items - Filter found items
-          </option>
-        </select>
+      <div className="mt-4 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-white">Filter</label>
+          <select
+            value={filterType}
+            onChange={(event) => setFilterType(event.target.value as 'all' | 'lost' | 'found')}
+            className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#6C3FF5]"
+          >
+            <option value="all" className="text-black">All</option>
+            <option value="lost" className="text-black">Lost</option>
+            <option value="found" className="text-black">Found</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-white">Sort by Date Posted</label>
+          <select
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
+            className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#6C3FF5]"
+          >
+            <option value="newest" className="text-black">Newest First</option>
+            <option value="oldest" className="text-black">Oldest First</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -354,16 +376,22 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
         <section className="mt-6 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-semibold text-white">
-              {filterType === 'lost' ? 'Lost Items' : 'Found Items'}
+              {filterType === 'all'
+                ? 'All Items'
+                : filterType === 'lost'
+                  ? 'Lost Items'
+                  : 'Found Items'}
             </h3>
             <span className="text-sm text-white/60">{filteredItems.length} items</span>
           </div>
 
           {filteredItems.length === 0 ? (
             <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-white/65">
-              {filterType === 'lost'
-                ? 'No lost items submitted yet.'
-                : 'No found items submitted yet.'}
+              {filterType === 'all'
+                ? 'No items submitted yet.'
+                : filterType === 'lost'
+                  ? 'No lost items submitted yet.'
+                  : 'No found items submitted yet.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

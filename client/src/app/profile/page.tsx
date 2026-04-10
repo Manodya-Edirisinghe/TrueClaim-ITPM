@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ProfileTabs from '@/components/profile/ProfileTabs';
-import UserInfoForm from '@/components/profile/UserInfoForm';
-import MyListingsSection from '@/components/profile/MyListingsSection';
+import UserInfoSection from '@/components/profile/UserInfoSection';
+import ListingsSection from '@/components/profile/ListingsSection';
 
 export default function ProfilePage() {
   const searchParams = useSearchParams();
@@ -22,8 +22,8 @@ export default function ProfilePage() {
       <div className="mt-5">
         <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
 
-        {activeTab === 'info' ? <UserInfoForm /> : null}
-        {activeTab === 'listings' ? <MyListingsSection compact /> : null}
+        {activeTab === 'info' ? <UserInfoSection /> : null}
+        {activeTab === 'listings' ? <ListingsSection compact /> : null}
       </div>
     </main>
   );

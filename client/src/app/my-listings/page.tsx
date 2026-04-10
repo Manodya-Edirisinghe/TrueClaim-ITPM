@@ -1,7 +1,7 @@
 'use client';
 
-import MyListingsSection from '@/components/profile/MyListingsSection';
+import ListingsSection from '@/components/profile/ListingsSection';
 
 export default function MyListingsPage() {
-  return <MyListingsSection />;
+  return <ListingsSection />;
 }

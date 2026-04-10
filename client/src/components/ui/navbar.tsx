@@ -3,8 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Menu, UserCircle2, X, Sparkles } from 'lucide-react';
+import api from '@/lib/axios';
 import { cn } from '@/lib/utils';
 
 const blue = '#0A66C2';
@@ -12,10 +12,10 @@ const subtle = 'rgba(255,255,255,0.07)';
 
 const menuItems = [
   { name: 'Home',         href: '/landing' },
+  { name: 'Lost & Found', href: '/lostandfound' },
   { name: 'Match Items',  href: '/matching' },
-  { name: 'Profile',      href: '/profile' },
+  { name: 'Message',      href: '/messages' },
   { name: 'Feedback',     href: '/feedback' },
-  { name: 'Messages',     href: '/messages' },
   { name: 'Contact',      href: '/landing#contact' },
 ];
 
@@ -37,6 +37,26 @@ export default function Navbar() {
   const [menuState, setMenuState] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
   const [activeLandingSection, setActiveLandingSection] = React.useState('');
+  const [username, setUsername] = React.useState('Profile');
+
+  React.useEffect(() => {
+    const syncUser = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        setUsername('Profile');
+        return;
+      }
+
+      try {
+        const { data } = await api.get<{ user?: { fullName?: string } }>('/auth/me');
+        setUsername(data?.user?.fullName?.trim() || 'Profile');
+      } catch {
+        setUsername('Profile');
+      }
+    };
+
+    void syncUser();
+  }, []);
 
   React.useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 50);
@@ -138,7 +158,7 @@ export default function Navbar() {
         <div
           className={cn(
             'mx-auto mt-2 max-w-6xl px-3 transition-all duration-300 sm:px-4 lg:px-8',
-            isScrolled && 'max-w-5xl rounded-2xl border backdrop-blur-xl lg:px-5',
+            isScrolled && 'rounded-2xl border backdrop-blur-xl lg:px-5',
           )}
           style={
             isScrolled
@@ -150,7 +170,7 @@ export default function Navbar() {
               : {}
           }
         >
-          <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
+          <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:flex-nowrap lg:gap-3 lg:py-4">
 
             {/* Logo */}
             <div className="flex w-full justify-between lg:w-auto">
@@ -167,7 +187,7 @@ export default function Navbar() {
             </div>
 
             {/* Desktop links */}
-            <div className="absolute inset-0 m-auto hidden size-fit lg:block">
+            <div className="hidden min-w-0 flex-1 justify-center px-2 lg:flex">
               <ul className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] p-1.5 text-sm shadow-2xl backdrop-blur-xl">
                 {menuItems.map((item, i) => (
                   <li key={i}>
@@ -188,7 +208,7 @@ export default function Navbar() {
               </ul>
             </div>
 
-            {/* CTA buttons */}
+            {/* Profile link */}
             <div
               className={cn(
                 'group-data-[state=active]:block lg:group-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-4 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none',
@@ -215,22 +235,14 @@ export default function Navbar() {
                   ))}
                 </ul>
               </div>
-              <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-                <Button asChild variant="outline" size="sm"
-                  className={cn('border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white', isScrolled && 'lg:hidden')}>
-                  <Link href="/login"><span>Sign Out</span></Link>
-                </Button>
-                <Button asChild size="sm"
-                  className={cn('text-white font-semibold shadow-lg shadow-blue-900/35', isScrolled && 'lg:hidden')}
-                  style={{ background: `linear-gradient(135deg, ${blue} 0%, #1789FF 100%)` }}>
-                  <Link href="/login"><span>Get Started</span></Link>
-                </Button>
-                <Button asChild size="sm"
-                  className={cn('text-white font-semibold shadow-lg shadow-blue-900/35', isScrolled ? 'lg:inline-flex' : 'hidden')}
-                  style={{ background: `linear-gradient(135deg, ${blue} 0%, #1789FF 100%)` }}>
-                  <Link href="/login"><span>Get Started →</span></Link>
-                </Button>
-              </div>
+              <Link
+                href="/profile"
+                onClick={() => setMenuState(false)}
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 lg:shrink-0"
+              >
+                <UserCircle2 className="h-4 w-4" />
+                <span className="max-w-[170px] truncate">{username}</span>
+              </Link>
             </div>
           </div>
         </div>

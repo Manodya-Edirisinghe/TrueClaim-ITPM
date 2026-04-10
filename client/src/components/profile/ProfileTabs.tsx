@@ -19,7 +19,7 @@ export default function ProfileTabs({ activeTab, onChange }: ProfileTabsProps) {
             : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
       >
-        My Info
+        Your Info
       </button>
       <button
         type="button"
@@ -30,7 +30,7 @@ export default function ProfileTabs({ activeTab, onChange }: ProfileTabsProps) {
             : 'text-white/70 hover:bg-white/10 hover:text-white'
         }`}
       >
-        My Listings
+        Your Listings
       </button>
     </div>
   );

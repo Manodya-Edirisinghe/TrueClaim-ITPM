@@ -34,13 +34,7 @@ function formatDateTime(value: string): string {
 }
 
 function MatchItemButton({ item }: { item: ListingItem }) {
-  const params = new URLSearchParams({
-    sourceType: item.itemType,
-    sourceItemId: item._id,
-    keyword: item.itemTitle,
-    category: item.itemCategory,
-    location: item.location,
-  });
+  const params = new URLSearchParams({ keyword: item.itemTitle });
 
   return (
     <Link href={`/matching?${params.toString()}`}>
