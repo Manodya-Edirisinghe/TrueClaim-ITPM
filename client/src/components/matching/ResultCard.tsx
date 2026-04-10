@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, MessageCircle } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, MapPin, MessageCircle, Shapes } from 'lucide-react';
 import { getCurrentUserId } from '@/lib/auth';
 
 type MatchResult = {
@@ -15,6 +15,7 @@ type MatchResult = {
   matchScore: number;
   // Owner ID for messaging.
   ownerId?: string;
+  ownerDisplayName?: string;
 };
 
 type ResultCardProps = {
@@ -45,9 +46,12 @@ export default function ResultCard({
     );
   };
 
+  const ownerName = item.ownerDisplayName?.trim() || 'Item Owner';
+  const ownerInitial = ownerName.charAt(0).toUpperCase() || 'U';
+
   return (
     <article
-      className={`group overflow-hidden rounded-2xl border bg-white/5 transition duration-300 hover:-translate-y-1 hover:border-blue-400/60 hover:bg-white/10 ${
+      className={`group relative overflow-hidden rounded-2xl border border-white/15 bg-[#0a1020]/85 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-1 hover:border-blue-300/45 hover:shadow-blue-900/30 ${
         isHighlighted ? 'border-cyan-300/70 ring-1 ring-cyan-400/50' : 'border-white/10'
       }`}
     >
@@ -59,30 +63,46 @@ export default function ResultCard({
             e.currentTarget.onerror = null;
             e.currentTarget.src = '/placeholder.png';
           }}
-          className="h-44 w-full object-cover"
+          className="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.02]"
         />
-        <div className="absolute right-3 top-3 rounded-full border border-blue-300/50 bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-100">
+
+        <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-black/45 px-3 py-2 backdrop-blur-sm">
+          <p className="line-clamp-1 pr-2 text-base font-semibold text-white">{item.title}</p>
+          <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-black/35 px-2 py-1 backdrop-blur-md">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/65 text-[11px] font-bold text-white">
+              {ownerInitial}
+            </span>
+            <span className="max-w-[92px] truncate text-xs font-semibold text-white/95">{ownerName}</span>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#05070c]/70 via-transparent to-transparent" />
+
+        <div className="absolute right-3 top-14 rounded-full border border-cyan-300/35 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
           {item.matchScore}% Match
         </div>
       </div>
 
       <div className="space-y-3 p-4">
-        <h3 className="text-lg font-semibold text-white">{item.title}</h3>
+        <h3 className="line-clamp-1 text-[1.65rem] font-semibold tracking-tight text-white/95 md:text-[1.7rem]">{item.title}</h3>
 
-        <div className="space-y-1 text-sm text-white/75">
-          <p>
-            <span className="text-white/55">Category:</span> {item.category}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-sm text-white/80">
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/35 bg-cyan-500/20 px-2.5 py-1 text-xs font-medium text-cyan-100">
+            <Shapes className="h-3.5 w-3.5 text-cyan-100" />
+            {item.category}
           </p>
-          <p>
-            <span className="text-white/55">Location:</span> {item.location}
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/35 bg-emerald-500/20 px-2.5 py-1 text-xs font-medium text-emerald-100">
+            <MapPin className="h-3.5 w-3.5 text-emerald-100" />
+            {item.location}
           </p>
-          <p>
-            <span className="text-white/55">Date Reported:</span> {item.date}
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-100">
+            <CalendarDays className="h-3.5 w-3.5 text-sky-100" />
+            {item.date}
           </p>
         </div>
 
         <div className="flex gap-2">
-          <button className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500">
+          <button className="flex-1 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20">
             View Details
           </button>
           {claimHref ? (
