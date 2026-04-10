@@ -190,6 +190,26 @@ input.tc-light-datetime[type="datetime-local"]::-webkit-calendar-picker-indicato
   color: #334155 !important;
 }
 
+/* Verification dashboard scrollbar override (light glass theme). */
+.tc-verification-dashboard,
+.tc-verification-dashboard * {
+  scrollbar-color: #5b8fce #e8eef9;
+}
+
+.tc-verification-dashboard *::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #f1f5fc 0%, #e4ecf8 100%);
+}
+
+.tc-verification-dashboard *::-webkit-scrollbar-thumb {
+  border: 2px solid #e8eef9;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9bb8db 0%, #6f98cc 55%, #5b88bf 100%);
+}
+
+.tc-verification-dashboard *::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #a7c0df 0%, #7ea4d3 55%, #6a94c8 100%);
+}
+
 .tc-footer-glow {
   position: absolute;
   pointer-events: none;
