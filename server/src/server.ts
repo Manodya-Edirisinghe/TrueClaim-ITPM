@@ -3,6 +3,8 @@ import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import { errorHandler } from './middlewares/error.middleware';
 
@@ -46,6 +48,8 @@ const corsOriginValidator: cors.CorsOptions['origin'] = (origin, callback) => {
 
 const app: Application = express();
 const httpServer = http.createServer(app);
+const uploadsDir = path.resolve(__dirname, '../uploads');
+const placeholderImagePath = path.resolve(__dirname, '../../client/public/placeholder.png');
 
 // ─── Socket.io ───────────────────────────────────────────────────────────────
 const io = new SocketIOServer(httpServer, {
@@ -84,7 +88,15 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(uploadsDir));
+app.get('/uploads/:fileName', (_req, res) => {
+  if (fs.existsSync(placeholderImagePath)) {
+    res.sendFile(placeholderImagePath);
+    return;
+  }
+
+  res.status(404).json({ error: 'Image not found' });
+});
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/items', itemRoutes);

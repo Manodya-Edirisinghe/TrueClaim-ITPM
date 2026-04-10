@@ -23,6 +23,8 @@ type MatchItem = MatchableItem & {
   image: string;
   contactNumber?: string;
   ownerId?: string;
+  ownerDisplayName?: string;
+  ownerAvatarUrl?: string;
 };
 
 type DisplayMatchItem = MatchResult<MatchItem>;
@@ -44,6 +46,8 @@ type ApiItem = {
   imageUrl?: string | null;
   contactNumber?: string;
   ownerId?: string;
+  ownerDisplayName?: string;
+  ownerAvatarUrl?: string | null;
 };
 
 const FALLBACK_IMAGE = '/placeholder.png';
@@ -172,6 +176,8 @@ export default function MatchingPage() {
           image: resolveImageUrl(entry.imageUrl) ?? FALLBACK_IMAGE,
           contactNumber: entry.contactNumber,
           ownerId: entry.ownerId,
+          ownerDisplayName: entry.ownerDisplayName ?? 'Item Owner',
+          ownerAvatarUrl: resolveImageUrl(entry.ownerAvatarUrl) ?? undefined,
         }));
 
         if (!isMounted) return;
@@ -410,9 +416,12 @@ export default function MatchingPage() {
                       image: item.image,
                       location: item.location,
                       date: item.date,
+                      itemType: item.itemType,
                       matchLevel: item.matchLevel,
                       matchPercentage: item.matchPercentage,
                       isLowConfidenceMatch: item.isLowConfidenceMatch,
+                      ownerDisplayName: item.ownerDisplayName,
+                      ownerAvatarUrl: item.ownerAvatarUrl,
                     }}
                     showImageMatchDetails={hasSearchedWithImage}
                     onOpen={() => setSelectedItem(item)}

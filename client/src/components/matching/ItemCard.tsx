@@ -8,9 +8,12 @@ export type MatchingCardItem = {
   image: string;
   location: string;
   date?: string;
+  itemType: 'lost' | 'found';
   matchLevel: 'High Match' | 'Medium Match' | 'Low Match';
   matchPercentage: number;
   isLowConfidenceMatch: boolean;
+  ownerDisplayName?: string;
+  ownerAvatarUrl?: string;
 };
 
 type ItemCardProps = {
@@ -34,12 +37,28 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
         ? 'bg-amber-300'
         : 'bg-rose-300';
 
+  const ownerName = item.ownerDisplayName?.trim() || 'Item Owner';
+  const ownerInitial = ownerName.charAt(0).toUpperCase() || 'U';
+  const listingBadgeText = item.itemType === 'lost' ? 'Lost item' : 'Found item';
+
   return (
     <article
       onClick={onOpen}
-      className="group relative overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.08] to-white/[0.03] shadow-lg shadow-black/25 transition duration-300 hover:-translate-y-1.5 hover:border-cyan-300/50 hover:shadow-cyan-500/20"
+      className="group relative overflow-hidden rounded-2xl border border-white/15 bg-[#0a1020]/85 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-1 hover:border-blue-300/45 hover:shadow-blue-900/30"
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400/70 via-blue-400/80 to-emerald-300/70" />
+      <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-black/45 px-3 py-2 backdrop-blur-sm">
+        <p className="line-clamp-1 pr-2 text-base font-semibold text-white">{item.title}</p>
+        <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2 py-1">
+          {item.ownerAvatarUrl ? (
+            <img src={item.ownerAvatarUrl} alt={ownerName} className="h-6 w-6 rounded-full object-cover" />
+          ) : (
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/65 text-[11px] font-bold text-white">
+              {ownerInitial}
+            </span>
+          )}
+          <span className="max-w-[78px] truncate text-xs font-semibold text-white/95">{ownerName}</span>
+        </div>
+      </div>
 
       <div className="relative">
         <img
@@ -49,9 +68,13 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
             e.currentTarget.onerror = null;
             e.currentTarget.src = '/placeholder.png';
           }}
-          className="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+          className="h-44 w-full object-cover transition duration-500 group-hover:scale-[1.02]"
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#05070c]/65 via-transparent to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#05070c]/70 via-transparent to-transparent" />
+
+        <span className="absolute bottom-3 left-3 inline-flex items-center rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white/90">
+          {listingBadgeText}
+        </span>
 
         {showImageMatchDetails ? (
           <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-cyan-300/30 bg-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-sm">
@@ -61,18 +84,18 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
         ) : null}
       </div>
 
-      <div className="space-y-3 p-4">
-        <h3 className="line-clamp-1 text-lg font-semibold tracking-tight text-white group-hover:text-cyan-100">
+      <div className="space-y-3 p-3.5">
+        <h3 className="line-clamp-1 text-[1.65rem] font-semibold tracking-tight text-white/95 md:text-[1.7rem]">
           {item.title}
         </h3>
 
-        <div className="space-y-3 pt-1 text-sm text-white/80">
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-            <MapPin className="h-4 w-4 text-blue-300" />
+        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-sm text-white/80">
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/35 bg-emerald-500/20 px-2.5 py-1 text-xs font-medium text-emerald-100">
+            <MapPin className="h-3.5 w-3.5 text-emerald-100" />
             {item.location}
           </p>
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-            <CalendarDays className="h-4 w-4 text-blue-300" />
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-100">
+            <CalendarDays className="h-3.5 w-3.5 text-sky-100" />
             {item.date ?? 'Date not available'}
           </p>
         </div>
