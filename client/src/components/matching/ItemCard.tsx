@@ -5,6 +5,7 @@ import { CalendarDays, MapPin, Sparkles } from 'lucide-react';
 export type MatchingCardItem = {
   id: string;
   title: string;
+  category: string;
   image: string;
   location: string;
   date?: string;
@@ -44,6 +45,8 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
   return (
     <article
       onClick={onOpen}
+      data-testid="item-card"
+      data-category={item.category}
       className="group relative overflow-hidden rounded-2xl border border-white/15 bg-[#0a1020]/85 shadow-lg shadow-black/30 transition duration-300 hover:-translate-y-1 hover:border-blue-300/45 hover:shadow-blue-900/30"
     >
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-black/45 px-3 py-2 backdrop-blur-sm">
@@ -108,7 +111,9 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
 
             <div className="flex items-center justify-between text-xs text-white/75">
               <span>Match confidence</span>
-              <span className="font-semibold">{item.matchPercentage}%</span>
+              <span data-testid="confidence-score" className="font-semibold">
+                {item.matchPercentage}%
+              </span>
             </div>
 
             <div className="h-2 overflow-hidden rounded-full bg-white/10">

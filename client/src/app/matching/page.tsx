@@ -501,7 +501,10 @@ export default function MatchingPage() {
                 <div className="h-[2px] w-16 bg-gradient-to-l from-transparent to-[#6C3FF5]" />
               </div>
               {showAdvanced ? (
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md animate-[pulse_4s_ease-in-out_infinite]">
+                <div
+                  data-testid="powered-by-ai"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 backdrop-blur-md animate-[pulse_4s_ease-in-out_infinite]"
+                >
                   <Sparkles className="h-3 w-3" />
                   Powered by AI
                 </div>
@@ -517,7 +520,7 @@ export default function MatchingPage() {
           />
         </div>
 
-        <section className="mt-8">
+        <section data-testid="results-section" className="mt-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-white">
               {hasActiveSearch ? 'Matching Results' : 'All items'}
@@ -557,6 +560,7 @@ export default function MatchingPage() {
                     item={{
                       id: item.id,
                       title: item.title,
+                      category: item.category,
                       image: item.image,
                       location: item.location,
                       date: item.date,
