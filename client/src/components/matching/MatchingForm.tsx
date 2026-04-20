@@ -45,6 +45,7 @@ export default function MatchingForm({
   return (
     <form
       onSubmit={onSubmit}
+      data-testid="search-section"
       className="rounded-2xl border border-white/20 bg-gradient-to-br from-white/[0.18] via-white/[0.08] to-white/[0.03] p-4 shadow-[0_18px_60px_rgba(2,8,23,0.6),inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-2xl md:p-5"
     >
       <h2 className="mb-3 text-lg font-semibold text-white">Search Filters</h2>
@@ -54,6 +55,7 @@ export default function MatchingForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-white/80">Keyword</label>
             <input
+              data-testid="keyword-input"
               type="text"
               value={filters.keyword}
               onChange={(event) => onFiltersChange({ ...filters, keyword: event.target.value })}
@@ -65,6 +67,7 @@ export default function MatchingForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-white/80">Category</label>
             <select
+              data-testid="category-select"
               value={filters.category}
               onChange={(event) => onFiltersChange({ ...filters, category: event.target.value })}
               className="w-full rounded-lg border border-white/20 bg-black/35 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-400"
@@ -82,6 +85,7 @@ export default function MatchingForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-white/80">Location</label>
             <input
+              data-testid="location-input"
               type="text"
               value={filters.location}
               onChange={(event) => onFiltersChange({ ...filters, location: event.target.value })}
@@ -92,6 +96,7 @@ export default function MatchingForm({
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:w-[240px]">
             <button
+              data-testid="search-button"
               type="submit"
               disabled={isSearching}
               className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
@@ -128,6 +133,7 @@ export default function MatchingForm({
             <div className="space-y-3 px-4 py-3.5">
               <label className="block text-sm font-medium text-white/80">Upload Image</label>
               <input
+                data-testid="image-upload"
                 type="file"
                 accept="image/png, image/jpeg, image/jpg"
                 onChange={onImageSelect}
