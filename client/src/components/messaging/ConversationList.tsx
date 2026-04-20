@@ -55,6 +55,7 @@ export default function ConversationList({
           <li key={conv._id} className="group relative">
             <button
               onClick={() => onSelect(conv)}
+              data-testid="conversation-item"
               className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-all ${
                 isActive
                   ? 'border border-blue-400/45 bg-blue-500/15 shadow-lg shadow-blue-900/20'

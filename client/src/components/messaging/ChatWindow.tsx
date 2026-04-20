@@ -175,7 +175,12 @@ export default function ChatWindow({
                       : 'rounded-2xl rounded-bl-md bg-white/[0.08] text-white/90 ring-1 ring-white/[0.06]'
                   }`}
                 >
-                  <p className={msg.isDeleted ? 'italic text-white/55' : ''}>{msg.text}</p>
+                  <p
+                    data-testid="chat-message-text"
+                    className={msg.isDeleted ? 'italic text-white/55' : ''}
+                  >
+                    {msg.text}
+                  </p>
                 </div>
 
                 {isMe && msg._id && !msg.isDeleted ? (
@@ -191,6 +196,7 @@ export default function ChatWindow({
                     {menuOpenFor === msg._id ? (
                       <div className="absolute bottom-8 right-0 z-10 min-w-28 rounded-md border border-white/10 bg-[#0d1422] p-1 shadow-lg shadow-black/30">
                         <button
+                          data-testid="unsend-button"
                           type="button"
                           onClick={() => {
                             onDeleteMessage(msg._id as string);
@@ -209,7 +215,7 @@ export default function ChatWindow({
           );
         })}
         {isOtherUserTyping ? (
-          <div className="flex items-center gap-2 pl-1 text-xs text-white/55">
+          <div data-testid="typing-indicator" className="flex items-center gap-2 pl-1 text-xs text-white/55">
             <span>{otherUserLabel} is typing</span>
             <span className="inline-flex items-center gap-1">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/60" />
@@ -252,6 +258,7 @@ export default function ChatWindow({
           </div>
         ) : null}
         <input
+          data-testid="message-input"
           ref={inputRef}
           type="text"
           value={text}
@@ -261,6 +268,7 @@ export default function ChatWindow({
           className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-blue-500/60 focus:bg-white/[0.06] focus:ring-1 focus:ring-blue-500/20"
         />
         <button
+          data-testid="send-button"
           type="submit"
           disabled={!canType || !text.trim()}
           className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-30 disabled:shadow-none disabled:cursor-not-allowed"
