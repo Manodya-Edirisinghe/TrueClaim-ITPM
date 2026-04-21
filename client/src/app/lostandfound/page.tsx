@@ -204,6 +204,7 @@ function ItemForm({
         id={formId}
         onSubmit={handleSubmit}
         noValidate
+        data-testid={`${type}-item-form`}
         className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5"
       >
         <div className="space-y-2">
@@ -351,6 +352,7 @@ function ItemForm({
           <Button
             type="submit"
             disabled={isSubmitting}
+            data-testid="submit-item-button"
             className="w-full bg-[#6C3FF5] hover:bg-[#0958a8] text-white sm:w-auto"
           >
             {isSubmitting

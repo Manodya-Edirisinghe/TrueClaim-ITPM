@@ -181,6 +181,7 @@ function EditListingModal({
               type="text"
               value={formData.location}
               onChange={(event) => setFormData((prev) => ({ ...prev, location: event.target.value }))}
+              data-testid="location-input"
               className="w-full rounded-lg border border-white/15 bg-black/35 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#0A66C2]"
               required
             />
@@ -352,6 +353,7 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
           <select
             value={filterType}
             onChange={(event) => setFilterType(event.target.value as 'all' | 'lost' | 'found')}
+            data-testid="listings-filter-select"
             className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#6C3FF5]"
           >
             <option value="all" className="text-black">All</option>
@@ -364,6 +366,7 @@ export default function MyListingsSection({ compact = false }: MyListingsSection
           <select
             value={sortOrder}
             onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
+            data-testid="listings-sort-select"
             className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-[#6C3FF5]"
           >
             <option value="newest" className="text-black">Newest First</option>

@@ -50,7 +50,10 @@ export default function ItemCard({ item, deleting, editing, onEdit, onDelete }: 
   const listingImageSrc = resolveImageUrl(item.imageUrl) ?? LISTING_FALLBACK_IMAGE;
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-0.5 hover:border-blue-400/45 hover:bg-white/[0.06]">
+    <article
+      data-testid="listing-card"
+      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-lg shadow-black/20 transition duration-300 hover:-translate-y-0.5 hover:border-blue-400/45 hover:bg-white/[0.06]"
+    >
       <div className="relative overflow-hidden border-b border-white/10 bg-black/20">
         <img
           src={listingImageSrc}
@@ -87,6 +90,7 @@ export default function ItemCard({ item, deleting, editing, onEdit, onDelete }: 
             variant="outline"
             onClick={() => onEdit(item)}
             disabled={editing}
+            data-testid="update-button"
             className="w-full border-white/20 bg-black/20 text-white hover:bg-black/35 sm:w-auto"
           >
             <Pencil className="mr-2 h-4 w-4" />
@@ -97,6 +101,7 @@ export default function ItemCard({ item, deleting, editing, onEdit, onDelete }: 
             variant="destructive"
             onClick={() => void onDelete(item._id)}
             disabled={deleting}
+            data-testid="delete-button"
             className="w-full sm:w-auto"
           >
             <Trash2 className="mr-2 h-4 w-4" />

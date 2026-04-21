@@ -15,7 +15,13 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'Manod QA',
+      testIgnore: /lost-found\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'Hashini QA',
+      testMatch: /lost-found\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
