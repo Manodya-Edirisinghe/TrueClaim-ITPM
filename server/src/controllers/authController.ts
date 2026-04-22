@@ -107,6 +107,37 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<Respo
   }
 };
 
+// ─── UPDATE CURRENT USER (JWT) ──────────────────────────────────────────────
+export const updateCurrentUser = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const userId = (req as AuthenticatedRequest).user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { phoneNumber, faculty, academicYear, password } = req.body;
+    const updates: Record<string, string> = {};
+
+    if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber.trim();
+    if (faculty?.trim())      updates.faculty      = faculty.trim();
+    if (academicYear?.trim()) updates.academicYear = academicYear.trim();
+    if (password?.trim()) {
+      if (password.trim().length < 6)
+        return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+      const salt = await bcrypt.genSalt(10);
+      updates.password = await bcrypt.hash(password.trim(), salt);
+    }
+
+    if (Object.keys(updates).length === 0)
+      return res.status(400).json({ error: 'Nothing to update.' });
+
+    const user = await User.findByIdAndUpdate(userId, updates, { new: true }).select('-password');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    return res.json({ user });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 // ─── PUBLIC USER NAME LOOKUP (JWT) ────────────────────────────────────────
 // Used by messaging UI to display participant names instead of raw IDs.
 export const getUserDisplayNameById = async (req: Request, res: Response): Promise<Response> => {
