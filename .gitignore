@@ -1,6 +1,11 @@
 node_modules/
+
 dist/
+
 *.js.map
+
 .next/
+
 config.bat
+
 server/uploads/
