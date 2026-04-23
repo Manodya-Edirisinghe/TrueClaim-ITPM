@@ -278,7 +278,11 @@ function LoginPage() {
       localStorage.setItem("trueclaim_plain_password", password);
 
       if (user.role === "admin") {
-        router.push("/verification");
+        if (user.universityEmail === "myadmin@trueclaim.com") {
+          router.push("/admin");
+        } else {
+          router.push("/verification");
+        }
       } else {
         router.push("/landing");
       }
