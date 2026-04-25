@@ -1,9 +1,7 @@
-import dotenv from 'dotenv';
+import "./config/loadEnv";
 import mongoose, { Types } from 'mongoose';
 import { Claim } from './models/Claim';
 import { Item } from './models/item.model';
-
-dotenv.config();
 
 const APPROVED_ITEM_ID = new Types.ObjectId('66f100000000000000000001');
 const REJECTED_ITEM_ID = new Types.ObjectId('66f100000000000000000002');

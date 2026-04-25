@@ -1,12 +1,12 @@
 import express, { Application } from 'express';
 import http from 'http';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
 import { Server as SocketIOServer } from 'socket.io';
 import { errorHandler } from './middlewares/error.middleware';
+import './config/loadEnv';
 
 // Routes
 import itemRoutes from './routes/item.routes';
@@ -17,8 +17,6 @@ import feedbackRoutes from './routes/feedbackRoutes';
 import authRoutes from './routes/authRoutes';
 import notificationRoutes from './routes/notification.routes';
 import contactRoutes from './routes/contact.routes';
-
-dotenv.config();
 
 const defaultAllowedOrigins = [
   'http://localhost:3000',

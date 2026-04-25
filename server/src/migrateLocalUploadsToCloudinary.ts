@@ -1,11 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import dotenv from 'dotenv';
+import "./config/loadEnv";
 import mongoose from 'mongoose';
 import cloudinary from './config/cloudinary';
 import { Item } from './models/item.model';
-
-dotenv.config();
 
 const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/trueclaim';
 
