@@ -1,5 +1,4 @@
 import HeroSection from '@/components/landing/HeroSection';
-import QuickActions from '@/components/landing/QuickActions';
 import HowItWorks from '@/components/landing/HowItWorks';
 import RecentItems from '@/components/landing/RecentItems';
 import FeatureHighlight from '@/components/landing/FeatureHighlight';
@@ -11,10 +10,9 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen bg-black text-white">
       <HeroSection />
-      <QuickActions />
-      <HowItWorks />
       <RecentItems />
       <FeatureHighlight />
+      <HowItWorks />
       <CallToAction />
       <section
         id="contact"
