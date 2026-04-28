@@ -4,24 +4,18 @@ import React, { useState } from "react";
 import { FormInput } from "./form-input";
 import { FormSelect } from "./form-select";
 import { FormTextarea } from "./form-textarea";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Send } from "lucide-react";
 
 interface FeedbackFormData {
-  // Page 1 - Basics
   caseNumber: string;
   interactionType: string;
   outcome: string;
   itemCategory: string;
-
-  // Page 2 - Performance Metrics
   easeOfReporting: number;
   speedOfResponse: number;
   platformNavigation: number;
   staffHelpfulness: number;
   overallSatisfaction: number;
-
-  // Page 3 - Qualitative Insights
   improvementSuggestions: string;
   wouldRecommend: string;
   additionalComments: string;
@@ -42,6 +36,15 @@ const INITIAL_DATA: FeedbackFormData = {
   additionalComments: "",
 };
 
+const PAGE_TITLES = ["The Basics", "How Did We Do?", "Your Insights"];
+const PAGE_DESCS = [
+  "Help us track which types of lost items and locations have the best recovery rates.",
+  "Please rate your experience on a scale of 1 to 5.",
+  "Help us improve by sharing your thoughts and suggestions.",
+];
+
+const labelCls = "block mb-1.5 text-xs font-medium text-white/60";
+
 export const FeedbackForm: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<FeedbackFormData>(INITIAL_DATA);
@@ -50,190 +53,143 @@ export const FeedbackForm: React.FC = () => {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleRatingChange = (fieldName: string, value: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      [fieldName]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [fieldName]: value }));
   };
 
-  const handleNext = () => {
-    if (currentPage < 3) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
+  const handleNext = () => { if (currentPage < 3) setCurrentPage(currentPage + 1); };
+  const handlePrevious = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  try {
-    const res = await fetch("http://localhost:5000/api/feedback", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
-    });
-
-    const data = await res.json();
-    console.log(data);
-
-    alert("Feedback submitted successfully!");
-
-    // reset form after successful submit
-    setFormData(INITIAL_DATA);
-    setCurrentPage(1);
-  } catch (error) {
-    console.error(error);
-    alert("Error submitting feedback");
-  }
-};
-
-  const isPage1Valid = () => {
-    return (
-      formData.caseNumber.trim() !== "" &&
-      formData.interactionType !== "" &&
-      formData.outcome !== "" &&
-      formData.itemCategory !== ""
-    );
+    e.preventDefault();
+    try {
+      const res = await fetch("http://localhost:5000/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      console.log(data);
+      alert("Feedback submitted successfully!");
+      setFormData(INITIAL_DATA);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error(error);
+      alert("Error submitting feedback");
+    }
   };
 
-  const isPage2Valid = () => {
-    return (
-      formData.easeOfReporting > 0 &&
-      formData.speedOfResponse > 0 &&
-      formData.platformNavigation > 0 &&
-      formData.staffHelpfulness > 0 &&
-      formData.overallSatisfaction > 0
-    );
-  };
+  const isPage1Valid = () =>
+    formData.caseNumber.trim() !== "" &&
+    formData.interactionType !== "" &&
+    formData.outcome !== "" &&
+    formData.itemCategory !== "";
 
-  const isPage3Valid = () => {
-    return (
-      formData.improvementSuggestions.trim() !== "" &&
-      formData.wouldRecommend !== ""
-    );
-  };
+  const isPage2Valid = () =>
+    formData.easeOfReporting > 0 &&
+    formData.speedOfResponse > 0 &&
+    formData.platformNavigation > 0 &&
+    formData.staffHelpfulness > 0 &&
+    formData.overallSatisfaction > 0;
 
-  const RatingComponent: React.FC<{
-    label: string;
-    fieldName: string;
-    value: number;
-  }> = ({ label, fieldName, value }) => (
-    <div className="mb-6">
-      <Label className="block mb-3 text-gray-200">{label}</Label>
-      <div className="flex gap-3">
+  const isPage3Valid = () =>
+    formData.improvementSuggestions.trim() !== "" &&
+    formData.wouldRecommend !== "";
+
+  const RatingComponent: React.FC<{ label: string; fieldName: string; value: number }> = ({
+    label, fieldName, value,
+  }) => (
+    <div>
+      <p className={labelCls}>{label}</p>
+      <div className="flex gap-2">
         {[1, 2, 3, 4, 5].map((num) => (
           <button
             key={num}
             type="button"
             onClick={() => handleRatingChange(fieldName, num)}
-            className={`w-12 h-12 rounded-lg font-semibold transition-all ${
+            className={`flex size-11 items-center justify-center rounded-xl border text-sm font-semibold transition-all ${
               value === num
-                ? "bg-blue-600 text-white shadow-lg"
-                : "bg-gray-700 text-gray-200 hover:bg-gray-600"
+                ? "border-blue-500 bg-[#0A66C2] text-white shadow-lg shadow-blue-900/40"
+                : "border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:bg-white/10 hover:text-white"
             }`}
           >
             {num}
           </button>
         ))}
       </div>
-      <p className="text-xs text-gray-500 mt-2">
-        1 = Poor, 5 = Excellent
-      </p>
+      <p className="mt-1.5 text-[11px] text-white/30">1 = Poor · 5 = Excellent</p>
     </div>
   );
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-gray-950 rounded-lg shadow-md border border-gray-800">
-      {/* Page Indicator */}
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-xl shadow-black/30">
+
+      {/* Progress */}
       <div className="mb-8">
-        <div className="flex justify-between mb-4">
+        <div className="flex gap-2">
           {[1, 2, 3].map((page) => (
             <div
               key={page}
-              className={`flex-1 h-2 mx-1 rounded-full transition-colors ${
-                page === currentPage
-                  ? "bg-blue-600"
-                  : page < currentPage
-                    ? "bg-green-500"
-                    : "bg-gray-700"
+              className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                page < currentPage
+                  ? "bg-green-500"
+                  : page === currentPage
+                  ? "bg-[#0A66C2]"
+                  : "bg-white/10"
               }`}
             />
           ))}
         </div>
-        <p className="text-center text-sm text-gray-400">
-          Page {currentPage} of 3
-        </p>
+        <p className="mt-3 text-xs text-white/40">Step {currentPage} of 3</p>
+      </div>
+
+      {/* Page heading */}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-white">{PAGE_TITLES[currentPage - 1]}</h2>
+        <p className="mt-1 text-sm text-white/50">{PAGE_DESCS[currentPage - 1]}</p>
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* PAGE 1: THE BASICS */}
-        {currentPage === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                The Basics
-              </h2>
-              <p className="text-gray-400 text-sm">
-                Help us track which types of lost items and locations have the
-                best recovery rates.
-              </p>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="caseNumber" className="text-gray-200">Case/Reference Number</Label>
+        {/* PAGE 1 */}
+        {currentPage === 1 && (
+          <div className="space-y-5">
+            <div>
+              <label className={labelCls}>Case / Reference Number</label>
               <FormInput
                 type="text"
-                id="caseNumber"
                 name="caseNumber"
                 placeholder="Enter your case or reference number"
                 value={formData.caseNumber}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white !placeholder-gray-500"
                 required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="interactionType" className="text-gray-200">Type of Interaction</Label>
+            <div>
+              <label className={labelCls}>Type of Interaction</label>
               <FormSelect
-                id="interactionType"
                 name="interactionType"
                 value={formData.interactionType}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white"
                 required
               >
                 <option value="">Select an interaction type</option>
                 <option value="lost-item">I lost an item</option>
                 <option value="found-item">I found an item</option>
-                <option value="browsing-database">
-                  I was browsing the database
-                </option>
+                <option value="browsing-database">I was browsing the database</option>
               </FormSelect>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="outcome" className="text-gray-200">Outcome</Label>
+            <div>
+              <label className={labelCls}>Outcome</label>
               <FormSelect
-                id="outcome"
                 name="outcome"
                 value={formData.outcome}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white"
                 required
               >
                 <option value="">Select an outcome</option>
@@ -243,14 +199,12 @@ export const FeedbackForm: React.FC = () => {
               </FormSelect>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="itemCategory" className="text-gray-200">Item Category</Label>
+            <div>
+              <label className={labelCls}>Item Category</label>
               <FormSelect
-                id="itemCategory"
                 name="itemCategory"
                 value={formData.itemCategory}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white"
                 required
               >
                 <option value="">Select an item category</option>
@@ -266,94 +220,42 @@ export const FeedbackForm: React.FC = () => {
           </div>
         )}
 
-        {/* PAGE 2: PERFORMANCE METRICS */}
+        {/* PAGE 2 */}
         {currentPage === 2 && (
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                How Did We Do?
-              </h2>
-              <p className="text-gray-400 text-sm">
-                Please rate your experience on a scale of 1-5.
-              </p>
-            </div>
-
-            <RatingComponent
-              label="Ease of Reporting"
-              fieldName="easeOfReporting"
-              value={formData.easeOfReporting}
-            />
-
-            <RatingComponent
-              label="Speed of Response"
-              fieldName="speedOfResponse"
-              value={formData.speedOfResponse}
-            />
-
-            <RatingComponent
-              label="Platform Navigation"
-              fieldName="platformNavigation"
-              value={formData.platformNavigation}
-            />
-
-            <RatingComponent
-              label="Staff Helpfulness"
-              fieldName="staffHelpfulness"
-              value={formData.staffHelpfulness}
-            />
-
-            <RatingComponent
-              label="Overall Satisfaction"
-              fieldName="overallSatisfaction"
-              value={formData.overallSatisfaction}
-            />
+          <div className="space-y-6">
+            <RatingComponent label="Ease of Reporting"   fieldName="easeOfReporting"   value={formData.easeOfReporting} />
+            <RatingComponent label="Speed of Response"   fieldName="speedOfResponse"   value={formData.speedOfResponse} />
+            <RatingComponent label="Platform Navigation" fieldName="platformNavigation" value={formData.platformNavigation} />
+            <RatingComponent label="Staff Helpfulness"   fieldName="staffHelpfulness"  value={formData.staffHelpfulness} />
+            <RatingComponent label="Overall Satisfaction" fieldName="overallSatisfaction" value={formData.overallSatisfaction} />
           </div>
         )}
 
-        {/* PAGE 3: QUALITATIVE INSIGHTS */}
+        {/* PAGE 3 */}
         {currentPage === 3 && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Your Insights Matter
-              </h2>
-              <p className="text-gray-400 text-sm">
-                Help us improve by sharing your thoughts and suggestions.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="improvementSuggestions" className="text-gray-200">
-                What could we have done better?
-              </Label>
+              <label className={labelCls}>What could we have done better?</label>
               <FormTextarea
-                id="improvementSuggestions"
                 name="improvementSuggestions"
                 placeholder="Share your suggestions for improvement..."
                 value={formData.improvementSuggestions}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white !placeholder-gray-500"
                 rows={4}
                 required
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="wouldRecommend" className="text-gray-200">
-                Would you recommend this system to others?
-              </Label>
+            <div>
+              <label className={labelCls}>Would you recommend this system to others?</label>
               <FormSelect
-                id="wouldRecommend"
                 name="wouldRecommend"
                 value={formData.wouldRecommend}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white"
                 required
               >
                 <option value="">Select your answer</option>
-                <option value="definitely-yes">
-                  Definitely yes - highly recommended
-                </option>
+                <option value="definitely-yes">Definitely yes — highly recommended</option>
                 <option value="probably-yes">Probably yes</option>
                 <option value="neutral">Neutral</option>
                 <option value="probably-no">Probably not</option>
@@ -361,53 +263,53 @@ export const FeedbackForm: React.FC = () => {
               </FormSelect>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="additionalComments" className="text-gray-200">Additional Comments</Label>
+            <div>
+              <label className={labelCls}>Additional Comments</label>
               <FormTextarea
-                id="additionalComments"
                 name="additionalComments"
                 placeholder="Any additional feedback or praise?"
                 value={formData.additionalComments}
                 onChange={handleInputChange}
-                className="!bg-black !border-gray-700 !text-white !placeholder-gray-500"
                 rows={4}
               />
             </div>
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex gap-4 mt-8 pt-6 border-t border-gray-800">
-          <Button
+        {/* Navigation */}
+        <div className="mt-8 flex gap-3 border-t border-white/[0.06] pt-6">
+          <button
             type="button"
             onClick={handlePrevious}
             disabled={currentPage === 1}
-            variant="outline"
-            className="flex-1 border-gray-700 text-white hover:bg-gray-800"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-30"
           >
+            <ChevronLeft className="size-4" />
             Previous
-          </Button>
+          </button>
 
           {currentPage < 3 ? (
-            <Button
+            <button
               type="button"
               onClick={handleNext}
               disabled={
                 (currentPage === 1 && !isPage1Valid()) ||
                 (currentPage === 2 && !isPage2Valid())
               }
-              className="flex-1"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0A66C2] to-[#1789FF] py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
             >
               Next
-            </Button>
+              <ChevronRight className="size-4" />
+            </button>
           ) : (
-            <Button
+            <button
               type="submit"
               disabled={!isPage3Valid()}
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-green-900/30 transition hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
             >
+              <Send className="size-4" />
               Submit Feedback
-            </Button>
+            </button>
           )}
         </div>
       </form>

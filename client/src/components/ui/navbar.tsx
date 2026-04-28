@@ -343,10 +343,10 @@ export default function Navbar() {
               <Link
                 href="/profile"
                 onClick={() => setMenuState(false)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/10 lg:shrink-0"
+                title={username}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/5 text-white transition hover:bg-white/10 lg:shrink-0"
               >
                 <UserCircle2 className="h-4 w-4" />
-                <span className="max-w-[170px] truncate">{username}</span>
               </Link>
             </div>
           </div>
