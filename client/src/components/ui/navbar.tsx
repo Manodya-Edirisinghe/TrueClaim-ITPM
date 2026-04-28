@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,14 +23,15 @@ const menuItems = [
 ];
 
 const TrueClaimLogo = () => (
-  <div className="flex items-center gap-2">
-    <div
-      className="size-9 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/30"
-      style={{ background: `linear-gradient(135deg, ${blue} 0%, #1f7ddf 55%, #53a2ff 100%)` }}
-    >
-      <Sparkles className="size-4 text-white" />
-    </div>
-    <span className="font-bold text-lg tracking-tight text-white">TrueClaim</span>
+  <div className="flex items-center">
+    <Image
+      src="/TrueClaim.png"
+      alt="TrueClaim"
+      width={180}
+      height={48}
+      priority
+      className="h-11 w-auto max-w-[140px] object-contain transition duration-200 group-hover:scale-[1.02] group-hover:opacity-95"
+    />
   </div>
 );
 
@@ -192,7 +194,12 @@ export default function Navbar() {
 
             {/* Logo */}
             <div className="flex w-full justify-between lg:w-auto">
-              <Link href="/landing" aria-label="home" onClick={(event) => handleNavClick(event, '/landing')}>
+              <Link
+                href="/landing"
+                aria-label="home"
+                onClick={(event) => handleNavClick(event, '/landing')}
+                className="inline-flex items-center rounded-md transition duration-200 hover:opacity-95"
+              >
                 <TrueClaimLogo />
               </Link>
               <button
