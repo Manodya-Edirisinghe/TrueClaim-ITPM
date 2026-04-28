@@ -37,8 +37,6 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
         ? 'bg-amber-300'
         : 'bg-rose-300';
 
-  const ownerName = item.ownerDisplayName?.trim() || 'Item Owner';
-  const ownerInitial = ownerName.charAt(0).toUpperCase() || 'U';
   const listingBadgeText = item.itemType === 'lost' ? 'Lost item' : 'Found item';
 
   return (
@@ -48,16 +46,6 @@ export default function ItemCard({ item, showImageMatchDetails, onOpen }: ItemCa
     >
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-black/45 px-3 py-2 backdrop-blur-sm">
         <p className="line-clamp-1 pr-2 text-base font-semibold text-white">{item.title}</p>
-        <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-black/35 px-2 py-1 backdrop-blur-md">
-          {item.ownerAvatarUrl ? (
-            <img src={item.ownerAvatarUrl} alt={ownerName} className="h-6 w-6 rounded-full object-cover" />
-          ) : (
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/65 text-[11px] font-bold text-white">
-              {ownerInitial}
-            </span>
-          )}
-          <span className="max-w-[92px] truncate text-xs font-semibold text-white/95">{ownerName}</span>
-        </div>
       </div>
 
       <div className="relative">
