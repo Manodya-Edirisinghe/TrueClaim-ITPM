@@ -2,7 +2,7 @@ import { test, expect, chromium } from '@playwright/test';
 import path from 'path';
 import { login, TEST_USERS } from './helpers/login';
 
-test.setTimeout(180000);
+test.describe.configure({ timeout: 180000 });
 
 const SCREENSHOT_DIR = 'test-results/screenshots/hashini-qa';
 const IMAGE_PATH = path.resolve(__dirname, 'images', 'Toyota car key.jpeg');
