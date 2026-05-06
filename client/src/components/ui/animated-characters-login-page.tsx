@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Mail } from "lucide-react";
 import api from "@/lib/axios";
 
 interface PupilProps {
@@ -312,11 +313,19 @@ function LoginPage() {
       {/* Left Content Section */}
       <div className="relative hidden lg:flex flex-col justify-between p-12" style={{ backgroundColor: "#f0f0f0", color: "#1a1a1a" }}>
         <div className="relative z-20">
-          <Link href="/landing" className="flex items-center gap-2 text-lg font-semibold" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="size-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.08)" }}>
-              <Sparkles className="size-4" style={{ color: "#1a1a1a" }} />
-            </div>
-            <span>TrueClaim</span>
+          <Link
+            href="/landing"
+            className="flex items-center"
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
+            <Image
+              src="/TrueClaim2.png"
+              alt="TrueClaim"
+              width={200}
+              height={52}
+              priority
+              className="h-11 w-auto object-contain"
+            />
           </Link>
         </div>
 
@@ -652,11 +661,19 @@ function LoginPage() {
       <div className="flex items-center justify-center p-8" style={{ backgroundColor: "#111111", color: "#f0f0f0" }}>
         <div className="w-full max-w-[420px]">
           {/* Mobile Logo */}
-          <Link href="/landing" className="lg:hidden flex items-center justify-center gap-2 text-lg font-semibold mb-12" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="size-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,0.1)" }}>
-              <Sparkles className="size-4" style={{ color: "#f0f0f0" }} />
-            </div>
-            <span>TrueClaim</span>
+          <Link
+            href="/landing"
+            className="lg:hidden flex items-center justify-center mb-12"
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
+            <Image
+              src="/TrueClaim.png"
+              alt="TrueClaim"
+              width={180}
+              height={48}
+              priority
+              className="h-10 w-auto object-contain"
+            />
           </Link>
 
           {/* Header */}
