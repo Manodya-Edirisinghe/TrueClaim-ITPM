@@ -1,6 +1,7 @@
-node_modules/
-dist/
-*.js.map
-.next/
-config.bat
+node_modules/
+dist/
+*.js.map
+.next/
+config.bat
 server/uploads/
+.env

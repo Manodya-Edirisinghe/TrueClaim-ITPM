@@ -5,6 +5,7 @@ import { FormInput } from "./form-input";
 import { FormSelect } from "./form-select";
 import { FormTextarea } from "./form-textarea";
 import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { toast } from "sonner";
 
 interface FeedbackFormData {
   caseNumber: string;
@@ -73,12 +74,12 @@ export const FeedbackForm: React.FC = () => {
       });
       const data = await res.json();
       console.log(data);
-      alert("Feedback submitted successfully!");
+      toast.success("Feedback submitted successfully!");
       setFormData(INITIAL_DATA);
       setCurrentPage(1);
     } catch (error) {
       console.error(error);
-      alert("Error submitting feedback");
+      toast.error("Error submitting feedback");
     }
   };
 
